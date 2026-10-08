@@ -105,7 +105,7 @@ export class MenuScene extends Phaser.Scene {
       this.text(
         cx,
         184,
-        'Art: Kenney (kenney.nl, CC0) and our own Knight and Ranger\nBuilt with Phaser',
+        'Art: the Knight and Ranger are drawn by Mariam Mohamed Samir\nOther art: Kenney (kenney.nl, CC0)    Built with Phaser',
         { fontSize: '9px', lineSpacing: 4, color: '#e0e0e0' },
       );
       this.backHint();

@@ -1,4 +1,4 @@
-// Sprite sheets: Kenney Pixel Platformer art (CC0, kenney.nl) plus our own Knight and Ranger.
+// Sprite sheets: Kenney Pixel Platformer art (CC0, kenney.nl) plus the Knight and Ranger drawn by Mariam Mohamed Samir.
 // Sheet keys, frame numbers and animations.
 // Frame numbers are 0-based, counted left to right, top to bottom on each sheet.
 import Phaser from 'phaser';

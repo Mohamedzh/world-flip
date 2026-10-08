@@ -143,7 +143,7 @@ If you edit a level by hand in Tiled, delete its script in `scripts/levels/` so 
 ## Credits
 
 Art: [Pixel Platformer](https://kenney.nl/assets/pixel-platformer) by Kenney (kenney.nl), CC0. See `public/assets/kenney/License.txt`.
-The Knight and Ranger sprites (`public/assets/heroes/`) were made from character art supplied for this project; their walk,
+The Knight and Ranger sprites (`public/assets/heroes/`) were drawn by Mariam Mohamed Samir; their walk,
 jump, fall and attack frames are built from that art.
 
 Sound and music: synthesized in the browser (`src/audio/`); there are no sound files.
