@@ -26,12 +26,19 @@ export function overlapsSolid(rect: Rect, tile: number, isSolid: SolidAt): boole
 }
 
 /**
- * Finds the nearest spot where `rect` overlaps nothing solid, trying a position standing at the
- * bottom of each nearby tile. Returns the new top-left corner, or null if nothing is free in range.
- * A spot with nothing solid underneath counts as one tile further away, so the hero is put on solid
- * footing rather than over a pit, unless a mid-air spot is much closer. Ties go to the higher spot.
+ * Finds the nearest spot where `rect` overlaps nothing solid, trying a position standing on the
+ * floor of each nearby tile. Returns the new top-left corner, or null if nothing is free in range.
+ * A spot with nothing solid underfoot counts as one tile further away, so the hero is put on solid
+ * footing rather than over a pit, unless a mid-air spot is much closer. Ties go to the spot higher up.
+ * With gravity -1 (upside-down) "floor", "underfoot" and "up" are all mirrored.
  */
-export function findFreeSpot(rect: Rect, tile: number, isSolid: SolidAt, maxRadius = 4): { x: number; y: number } | null {
+export function findFreeSpot(
+  rect: Rect,
+  tile: number,
+  isSolid: SolidAt,
+  maxRadius = 4,
+  gravity: 1 | -1 = 1,
+): { x: number; y: number } | null {
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
   const col = Math.floor(cx / tile);
@@ -41,11 +48,13 @@ export function findFreeSpot(rect: Rect, tile: number, isSolid: SolidAt, maxRadi
   for (let dr = -maxRadius; dr <= maxRadius; dr++) {
     for (let dc = -maxRadius; dc <= maxRadius; dc++) {
       const x = (col + dc) * tile + (tile - rect.width) / 2;
-      const y = (row + dr + 1) * tile - rect.height;
+      // Stand on the bottom of the tile, or hang from its top when gravity is reversed.
+      const y = gravity > 0 ? (row + dr + 1) * tile - rect.height : (row + dr) * tile;
       if (overlapsSolid({ x, y, width: rect.width, height: rect.height }, tile, isSolid)) continue;
-      const supported = isSolid(col + dc, row + dr + 1);
+      const supported = isSolid(col + dc, row + dr + gravity);
       const dist = Math.hypot(x + rect.width / 2 - cx, y + rect.height / 2 - cy) + (supported ? 0 : tile);
-      if (!best || dist < best.dist - 0.001 || (Math.abs(dist - best.dist) <= 0.001 && y < best.y)) {
+      const higherUp = best !== null && (gravity > 0 ? y < best.y : y > best.y);
+      if (!best || dist < best.dist - 0.001 || (Math.abs(dist - best.dist) <= 0.001 && higherUp)) {
         best = { x, y, dist };
       }
     }

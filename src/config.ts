@@ -100,6 +100,62 @@ export const FIRE = {
   burnSpreadMs: 70,
 } as const;
 
+export const WATER = {
+  /** The wave rolls forward this fast, for this long (about 6 tiles). */
+  speed: 220,
+  lifetimeMs: 500,
+  /** Enemies hit are pushed back about 3 tiles (spec): this speed for this long. */
+  pushSpeed: 170,
+  pushMs: 380,
+  /** Water left across a gap by a wave (the Water-then-Snow combo) dries up after this. */
+  puddleMs: 3_000,
+} as const;
+
+export const SNOW = {
+  /** Snowballs fly straight for about 4 tiles (hitting enemies ahead), then drop, so they can land in water. */
+  speed: 200,
+  straightRange: TILE * 4,
+  lifetimeMs: 2_500,
+  /** A frozen enemy is an ice block you can stand on (spec: 4 s). */
+  freezeMs: 4_000,
+  /** An ice bridge on water lasts 8 s (spec); it blinks for the last part as a warning. */
+  iceBridgeMs: 8_000,
+  iceWarningMs: 1_500,
+  /** Knight's frost swing slows enemies to this fraction of their speed. */
+  slowFactor: 0.4,
+  slowMs: 3_000,
+} as const;
+
+export const WIND = {
+  /** The gust's reach in front of the hero, and how hard it throws enemies (off ledges). */
+  gustWidth: TILE * 5,
+  gustHeight: TILE * 2.5,
+  gustPushX: 260,
+  gustPushY: 160,
+  gustPushMs: 600,
+  /** Wind's movement gift (spec): a double jump, then holding jump glides for up to 2 s. */
+  doubleJumpVelocity: 300,
+  glideMs: 2_000,
+  glideFallSpeed: 45,
+} as const;
+
+/** Fire walls, put out by Water. They reach from the floor up to the ceiling (at most this many tiles). */
+export const FIRE_WALL = {
+  maxHeightTiles: 10,
+} as const;
+
+export const THROWER = {
+  speed: 18,
+  /** Throws a pellet this often when the hero is within range and in front. */
+  throwEveryMs: 2_400,
+  rangeTiles: 11,
+  pelletSpeed: 120,
+  pelletLifetimeMs: 3_500,
+  /** A pellet knocked back by the Knight's swing flies this much faster and hurts enemies. */
+  deflectSpeedFactor: 1.6,
+  deflectDamage: 2,
+} as const;
+
 export const GUARDIAN = {
   /** The Ember Beetle, World 1's guardian. */
   emberBeetle: {
@@ -110,6 +166,33 @@ export const GUARDIAN = {
     chargeEveryMs: 3_200,
     telegraphMs: 650,
     chargeMs: 1_100,
+  },
+  /** World 2's guardian: crouches as a warning, then leaps at the hero. */
+  tideFrog: {
+    health: 10,
+    walkSpeed: 30,
+    hopEveryMs: 2_400,
+    telegraphMs: 550,
+    hopVelocityY: 360,
+    hopVelocityX: 150,
+  },
+  /** World 3's guardian: flies back and forth, then swoops down at the hero. */
+  frostOwl: {
+    health: 12,
+    cruiseSpeed: 55,
+    swoopEveryMs: 3_000,
+    telegraphMs: 600,
+    swoopSpeed: 190,
+    swoopMs: 900,
+  },
+  /** World 4's guardian: like the owl, but faster and more often. */
+  stormHawk: {
+    health: 14,
+    cruiseSpeed: 80,
+    swoopEveryMs: 2_300,
+    telegraphMs: 450,
+    swoopSpeed: 250,
+    swoopMs: 800,
   },
   /** The guardian's health bar shows when the hero is this close. */
   showBarRange: TILE * 16,

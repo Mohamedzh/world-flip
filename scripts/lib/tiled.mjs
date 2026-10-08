@@ -1,33 +1,35 @@
 // Shared helpers for building level files in the Tiled map format (.tmj).
 // Levels are drawn on a character grid, then turned into tile layers:
-//   '#' ground (auto-tiled with Kenney grass and dirt)   'O' orange block   'B' blue block
-//   'X' wooden crate (burnable)                           '.' empty
+//   '#' ground (auto-tiled with Kenney grass or snow, and dirt)   'O' orange block   'B' blue block
+//   'X' wooden crate (burnable)   'W' water (deadly, Snow freezes it)   '.' empty
 import { writeFileSync } from 'node:fs';
 
 export const TILE = 18;
 
 // Tilesets. Kenney's Pixel Platformer tiles come first; the orange/blue blocks stay our own,
-// because they need stripes and dots for color-blind players (spec).
+// because they need stripes and dots for color-blind players (spec). Ice is ours too.
 const KENNEY = { firstgid: 1, name: 'kenney', image: '../kenney/tiles.png', columns: 20, rows: 9 };
-const BLOCKS = { firstgid: 181, name: 'placeholder', image: '../tiles/placeholder-tiles.png', columns: 4, rows: 1 };
+const BLOCKS = { firstgid: 181, name: 'placeholder', image: '../tiles/placeholder-tiles.png', columns: 5, rows: 1 };
 
 /** Kenney tile index (0-based, as numbered on the sheet) to the map's tile id. */
 const kenney = (index) => KENNEY.firstgid + index;
+
+/** Ground tiles per theme: top row [left, middle, right], one-tile platforms [single, left, middle, right]. */
+const GROUND = {
+  grass: { top: [21, 22, 23], platform: [0, 1, 2, 3] },
+  snow: { top: [101, 102, 103], platform: [80, 81, 82, 83] },
+};
+/** Each world's look; the game uses the same theme name for the background. */
+export const THEMES = { meadow: 'grass', lake: 'grass', mountain: 'snow', sky: 'grass' };
+
 const T = {
-  // Ground with a grass top: left edge, middle, right edge.
-  grassLeft: kenney(21),
-  grass: kenney(22),
-  grassRight: kenney(23),
-  // A floating one-tile-high platform: single, left, middle, right.
-  platformSingle: kenney(0),
-  platformLeft: kenney(1),
-  platform: kenney(2),
-  platformRight: kenney(3),
-  // Dirt under the grass: left edge, middle, right edge.
+  // Dirt under the top row: left edge, middle, right edge.
   dirtLeft: kenney(121),
   dirt: kenney(122),
   dirtRight: kenney(123),
   crate: kenney(26),
+  waterTop: kenney(33),
+  water: kenney(53),
   orange: BLOCKS.firstgid + 2,
   blue: BLOCKS.firstgid + 3,
   // Decorations drawn on top of ground: grass sprouts and a small tree.
@@ -55,12 +57,17 @@ export class LevelGrid {
     return this.fill(x1, x2, top, this.height - 1, '#');
   }
 
+  /** A ceiling hanging from the top of the map down to row `bottom`. */
+  ceiling(x1, x2, bottom) {
+    return this.fill(x1, x2, 0, bottom, '#');
+  }
+
   /**
    * Places a point object standing on the floor of tile (col, row):
-   * x = tile center, y = top of the tile below.
+   * x = tile center, y = top of the tile below. `properties` become Tiled custom properties.
    */
-  place(type, col, row) {
-    this.objects.push({ type, x: col * TILE + TILE / 2, y: (row + 1) * TILE });
+  place(type, col, row, properties = {}) {
+    this.objects.push({ type, x: col * TILE + TILE / 2, y: (row + 1) * TILE, properties });
     return this;
   }
 
@@ -71,17 +78,18 @@ export class LevelGrid {
   }
 }
 
-function groundTile(g, x, y) {
+function groundTile(g, x, y, set) {
   const solid = (dx, dy) => g.at(x + dx, y + dy) === '#';
   const left = solid(-1, 0);
   const right = solid(1, 0);
+  const pick = ([l, m, r]) => kenney(!left ? l : !right ? r : m);
   if (solid(0, -1)) return !left ? T.dirtLeft : !right ? T.dirtRight : T.dirt;
   if (!solid(0, 1)) {
     // A one-tile-high floating platform.
-    if (!left && !right) return T.platformSingle;
-    return !left ? T.platformLeft : !right ? T.platformRight : T.platform;
+    if (!left && !right) return kenney(set.platform[0]);
+    return pick(set.platform.slice(1));
   }
-  return !left ? T.grassLeft : !right ? T.grassRight : T.grass;
+  return pick(set.top);
 }
 
 /** A repeatable pseudo-random number in [0, 1) for a tile, so decorations don't move between builds. */
@@ -90,23 +98,28 @@ function hash(x, y) {
   return n - Math.floor(n);
 }
 
+const propType = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? 'int' : 'float') : 'string');
+const toProps = (obj) => Object.entries(obj).map(([name, value]) => ({ name, type: propType(value), value }));
+
 /**
  * Writes the level as a .tmj file.
- * properties: map properties, e.g. { name: 'Meadow', flipOrder: 'lowGravity,colorSwap', parTimeSec: 180 }
+ * properties: map properties, e.g. { name: 'Meadow', theme: 'meadow', flipOrder: 'lowGravity,colorSwap', parTimeSec: 180 }
  */
 export function writeLevel(g, outUrl, properties) {
-  const layerData = { ground: [], orange: [], blue: [], burnable: [], decor: [] };
+  const set = GROUND[THEMES[properties.theme] ?? 'grass'];
+  const layerData = { ground: [], orange: [], blue: [], burnable: [], water: [], decor: [] };
   for (let y = 0; y < g.height; y++) {
     for (let x = 0; x < g.width; x++) {
       const ch = g.rows[y][x];
-      layerData.ground.push(ch === '#' ? groundTile(g, x, y) : 0);
+      layerData.ground.push(ch === '#' ? groundTile(g, x, y, set) : 0);
       layerData.orange.push(ch === 'O' ? T.orange : 0);
       layerData.blue.push(ch === 'B' ? T.blue : 0);
       layerData.burnable.push(ch === 'X' ? T.crate : 0);
-      // Sprinkle a few plants on open grass.
-      const onGrass = ch === '.' && g.at(x, y + 1) === '#' && g.at(x, y - 1) === '.';
+      layerData.water.push(ch === 'W' ? (g.at(x, y - 1) === 'W' ? T.water : T.waterTop) : 0);
+      // Sprinkle a few plants on open ground (not on snow).
+      const onGround = ch === '.' && g.at(x, y + 1) === '#' && g.at(x, y - 1) === '.' && set === GROUND.grass;
       const r = hash(x, y);
-      layerData.decor.push(onGrass && r < 0.18 ? (r < 0.06 ? T.tree : r < 0.12 ? T.tallSprout : T.sprout) : 0);
+      layerData.decor.push(onGround && r < 0.18 ? (r < 0.06 ? T.tree : r < 0.12 ? T.tallSprout : T.sprout) : 0);
     }
   }
 
@@ -134,6 +147,7 @@ export function writeLevel(g, outUrl, properties) {
     rotation: 0,
     visible: true,
     point: true,
+    ...(Object.keys(o.properties).length > 0 ? { properties: toProps(o.properties) } : {}),
   }));
   const tileset = (ts) => ({
     firstgid: ts.firstgid,
@@ -148,7 +162,6 @@ export function writeLevel(g, outUrl, properties) {
     margin: 0,
     spacing: 0,
   });
-  const propType = (v) => (typeof v === 'number' ? (Number.isInteger(v) ? 'int' : 'float') : 'string');
 
   const map = {
     type: 'map',
@@ -162,10 +175,11 @@ export function writeLevel(g, outUrl, properties) {
     height: g.height,
     tilewidth: TILE,
     tileheight: TILE,
-    properties: Object.entries(properties).map(([name, value]) => ({ name, type: propType(value), value })),
+    properties: toProps(properties),
     tilesets: [tileset(KENNEY), tileset(BLOCKS)],
     layers: [
       tileLayer('decor', layerData.decor),
+      tileLayer('water', layerData.water),
       tileLayer('blue', layerData.blue),
       tileLayer('ground', layerData.ground),
       tileLayer('orange', layerData.orange),

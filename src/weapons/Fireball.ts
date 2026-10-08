@@ -3,29 +3,32 @@
 import Phaser from 'phaser';
 import { FIRE } from '../config';
 import { TEXTURES } from '../gfx/placeholderTextures';
+import type { GravityDir } from '../systems/flips';
 
 export class Fireball extends Phaser.Physics.Arcade.Image {
   declare body: Phaser.Physics.Arcade.Body;
 
   readonly damage = FIRE.damage;
+  /** Set once Wind has split this fireball (Fire plus Wind combo), so it only spreads once. */
+  spread = false;
   private bounces = 0;
   private readonly bornAt: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, dir: 1 | -1) {
+  constructor(scene: Phaser.Scene, x: number, y: number, dir: 1 | -1, gravityDir: GravityDir, velocityY = -60) {
     super(scene, x, y, TEXTURES.fireball);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(4);
     this.bornAt = scene.time.now;
     this.body.setSize(6, 6);
-    this.body.setVelocity(dir * FIRE.speed, -60);
+    this.body.setVelocity(dir * FIRE.speed, velocityY * gravityDir);
   }
 
   /** Called when it lands on a floor: hop again, or fizzle out after a few bounces. */
-  bounce(): void {
+  bounce(gravityDir: GravityDir): void {
     this.bounces++;
     if (this.bounces > FIRE.maxBounces) this.burnOut();
-    else this.body.setVelocityY(-FIRE.bounceVelocity);
+    else this.body.setVelocityY(-FIRE.bounceVelocity * gravityDir);
   }
 
   /** Called every frame by the fireballs group. */

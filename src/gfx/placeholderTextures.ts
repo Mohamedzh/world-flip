@@ -9,6 +9,12 @@ export const TEXTURES = {
   crown: 'crown',
   arrow: 'arrow',
   fireball: 'fireball',
+  wave: 'water-wave',
+  snowball: 'snowball',
+  pellet: 'pellet',
+  flameA: 'flame-a',
+  flameB: 'flame-b',
+  lock: 'lock',
   starFull: 'star-full',
   starEmpty: 'star-empty',
   pixel: 'pixel',
@@ -20,6 +26,7 @@ export const FLIP_ICONS: Record<FlipState, string> = {
   lowGravity: 'flip-low-gravity',
   colorSwap: 'flip-color-swap',
   friendFoe: 'flip-friend-foe',
+  upsideDown: 'flip-upside-down',
 };
 
 /** 10 x 10 power icons, used in the HUD and for the power orbs guardians drop. */
@@ -83,6 +90,100 @@ const FIREBALL_ROWS = [
   '..rrrr..',
 ];
 
+// 14 x 18: a curling wave.
+const WAVE_ROWS = [
+  '..............',
+  '......dddd....',
+  '....ddwwwwd...',
+  '...dwwbbbwwd..',
+  '..dwbbbbbbwd..',
+  '..dbbbd..dbwd.',
+  '.dbbbd....dwd.',
+  '.dbbd......d..',
+  'dbbbd.........',
+  'dbbbbd........',
+  'dbbbbbd.......',
+  'dbbbbbbd......',
+  'dbbbbbbbdd....',
+  'dbbbbbbbbbdd..',
+  'dbbbbbbbbbbbd.',
+  'dbbbbbbbbbbbbd',
+  'dbbbbbbbbbbbbd',
+  'dddddddddddddd',
+];
+
+// 8 x 8
+const SNOWBALL_ROWS = [
+  '..bbbb..',
+  '.bwwwwb.',
+  'bwwwwwwb',
+  'bwwwwlwb',
+  'bwwwwwwb',
+  'bwlwwwwb',
+  '.bwwwwb.',
+  '..bbbb..',
+];
+
+// 6 x 6
+const PELLET_ROWS = ['.pppp.', 'pqqqqp', 'pqwqqp', 'pqqqqp', 'pqqqqp', '.pppp.'];
+
+// 18 x 18, two frames of a flickering flame (fire walls).
+const FLAME_A = [
+  '......r.....r.....',
+  '.....rr....rr.....',
+  '....ror...ror..r..',
+  '...roor..roor.rr..',
+  '..rooor.rooorror..',
+  '..rooyorooyoooor..',
+  '.rooyyoooyyyoyor..',
+  '.royyyyoyyyyyyoor.',
+  'roywyyyyywwyyyyor.',
+  'royywwyyywwwyyyor.',
+  'royywwwyyywwyyyor.',
+  'roywwwwwyywwwyyor.',
+  'royywwwwwwwwwyyor.',
+  'roywwwwwwwwwwwyor.',
+  'royywwwwwwwwwyyor.',
+  '.royywwwwwwwyyor..',
+  '.rooyyyyyyyyyoor..',
+  '..rrrrrrrrrrrrr...',
+];
+const FLAME_B = [
+  '...r.......r......',
+  '...rr.....rr...r..',
+  '..ror....ror..rr..',
+  '..roor..roor.ror..',
+  '.rooor.rooorroor..',
+  '.rooyorooyooooyor.',
+  '.rooyyooyyyyoyyor.',
+  'royyyyyyyyyyyyyor.',
+  'royywyyyywwyyyyor.',
+  'royywwyyywwwyyyor.',
+  'roywwwwyyywwwyyor.',
+  'royywwwwyywwwyyor.',
+  'roywwwwwwwwwwyyor.',
+  'royywwwwwwwwwwyor.',
+  'roywwwwwwwwwwyyor.',
+  '.royywwwwwwwwyor..',
+  '.rooyyyyyyyyyyor..',
+  '..rrrrrrrrrrrrr...',
+];
+
+// 9 x 11: a padlock for locked worlds on the map.
+const LOCK_ROWS = [
+  '..ggggg..',
+  '.gg...gg.',
+  '.g.....g.',
+  '.g.....g.',
+  'yyyyyyyyy',
+  'yyyyyyyyy',
+  'yyyykyyyy',
+  'yyykkkyyy',
+  'yyyykyyyy',
+  'yyyyyyyyy',
+  'ddddddddd',
+];
+
 // 11 x 11
 const STAR_ROWS = [
   '.....s.....',
@@ -105,6 +206,13 @@ export function createPlaceholderTextures(scene: Phaser.Scene): void {
   pixelTexture(scene, TEXTURES.starFull, STAR_ROWS, { s: COLORS.crown });
   pixelTexture(scene, TEXTURES.starEmpty, STAR_ROWS, { s: 0x3a3f4b });
   pixelTexture(scene, TEXTURES.pixel, ['w'], { w: 0xffffff });
+  pixelTexture(scene, TEXTURES.wave, WAVE_ROWS, { d: 0x1e4fa8, b: 0x4fc3f7, w: 0xe3f2fd });
+  pixelTexture(scene, TEXTURES.snowball, SNOWBALL_ROWS, { b: 0x90caf9, w: 0xffffff, l: 0xbbdefb });
+  pixelTexture(scene, TEXTURES.pellet, PELLET_ROWS, { p: 0x6a1b9a, q: 0xba68c8, w: 0xf3e5f5 });
+  const flame = { r: 0xd84315, o: 0xff7043, y: 0xffca28, w: 0xfff8e1 };
+  pixelTexture(scene, TEXTURES.flameA, FLAME_A, flame);
+  pixelTexture(scene, TEXTURES.flameB, FLAME_B, flame);
+  pixelTexture(scene, TEXTURES.lock, LOCK_ROWS, { g: 0x9e9e9e, y: COLORS.crown, k: 0x5d4037, d: shade(COLORS.crown, 0.3) });
   createFlipIcons(scene);
   createPowerIcons(scene);
 }
@@ -146,6 +254,18 @@ function createFlipIcons(scene: Phaser.Scene): void {
     'ooopobbbb',
     'poooobbbb',
   ], { o: 0xf28c28, p: 0xb85f0e, b: 0x3b82f6, q: 0x1e4fa8 });
+  // Upside-down: an arrow pointing up at a ceiling bar.
+  pixelTexture(scene, FLIP_ICONS.upsideDown, [
+    'ccccccccc',
+    '.........',
+    '....w....',
+    '...www...',
+    '..wwwww..',
+    '....w....',
+    '....w....',
+    '....w....',
+    '....w....',
+  ], { c: 0xffd23f, w: 0xffffff });
   // Friend/foe swap: a red square and a yellow circle side by side.
   pixelTexture(scene, FLIP_ICONS.friendFoe, [
     '.........',

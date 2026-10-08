@@ -2,6 +2,7 @@
 // Plain TypeScript so every level file can be validated by the unit tests.
 import type { Point } from '../systems/CheckpointTracker';
 import { FLIP_STATES, isFlipState, type FlipState } from '../systems/flips';
+import type { FlipMode } from '../systems/FlipManager';
 import type { Element } from '../systems/powers';
 
 /** One tile layer per block type (spec). */
@@ -11,6 +12,8 @@ export const TILE_LAYERS = {
   blue: 'blue',
   /** Wooden crates that Fire burns away. */
   burnable: 'burnable',
+  /** Deadly water. Snow freezes its surface into an ice bridge. */
+  water: 'water',
 } as const;
 
 /** Optional layer of plants and other decorations, drawn behind everything and never solid. */
@@ -27,6 +30,9 @@ export const TILESETS = {
 /** Guardian enemies, and the power each one gives (spec). */
 export const GUARDIANS = {
   emberBeetle: { name: 'Ember Beetle', element: 'fire' },
+  tideFrog: { name: 'Tide Frog', element: 'water' },
+  frostOwl: { name: 'Frost Owl', element: 'snow' },
+  stormHawk: { name: 'Storm Hawk', element: 'wind' },
 } as const satisfies Record<string, { name: string; element: Element }>;
 export type GuardianKind = keyof typeof GUARDIANS;
 
@@ -41,10 +47,22 @@ export const PAR_PROPERTY = 'parTimeSec';
 /** Map property: the level's name, shown to the player. */
 export const NAME_PROPERTY = 'name';
 
+/** Each world's look (background and ground). */
+export const THEMES = ['meadow', 'lake', 'mountain', 'sky'] as const;
+export type Theme = (typeof THEMES)[number];
+
+/** A seed pod grows this many tiles tall when watered, unless its object says otherwise. */
+export const DEFAULT_POD_HEIGHT = 3;
+
+export interface SeedPodSpawn extends Point {
+  height: number;
+}
+
 /** The minimal slice of the Tiled JSON format used here. */
 export interface TiledObject {
   id: number;
   name: string;
+  properties?: TiledProperty[];
   /** Tiled 1.10+ writes an object's class as `type`; 1.9 briefly used `class`. */
   type?: string;
   class?: string;
@@ -75,7 +93,13 @@ export interface TiledMap {
 
 export interface LevelData {
   name: string;
+  theme: Theme;
   parMs: number;
+  /** fixed: flips in list order; random: picked at random from the list (level 4). */
+  flipMode: FlipMode;
+  /** Basic enemies get tougher and faster in later worlds (spec). */
+  enemyHealth: number;
+  enemySpeed: number;
   spawn: Point;
   /** Sorted left to right. */
   checkpoints: Point[];
@@ -84,6 +108,10 @@ export interface LevelData {
   /** Bounce mushrooms, the friend creature. */
   mushrooms: Point[];
   guardians: GuardianSpawn[];
+  /** Enemies that stand back and throw slow pellets (the Knight's swing knocks them back). */
+  throwers: Point[];
+  seedPods: SeedPodSpawn[];
+  fireWalls: Point[];
   flipOrder: FlipState[];
 }
 
@@ -98,8 +126,8 @@ export function parseLevel(map: TiledMap): LevelData {
   const layer = map.layers.find((l) => l.name === OBJECT_LAYER && l.type === 'objectgroup');
   if (!layer?.objects) throw new LevelDataError(`Level is missing the object layer "${OBJECT_LAYER}"`);
 
-  const ofKind = (kind: string) =>
-    layer.objects!.filter((o) => (o.type || o.class || o.name) === kind).map(({ x, y }) => ({ x, y }));
+  const objectsOf = (kind: string) => layer.objects!.filter((o) => (o.type || o.class || o.name) === kind);
+  const ofKind = (kind: string) => objectsOf(kind).map(({ x, y }) => ({ x, y }));
 
   const spawns = ofKind('spawn');
   const crowns = ofKind('crown');
@@ -116,16 +144,38 @@ export function parseLevel(map: TiledMap): LevelData {
     throw new LevelDataError(`Level needs a "${PAR_PROPERTY}" map property: the par time in seconds`);
   }
   const name = property(map, NAME_PROPERTY);
+  const theme = property(map, 'theme');
+  if (typeof theme !== 'string' || !(THEMES as readonly string[]).includes(theme)) {
+    throw new LevelDataError(`Level needs a "theme" map property: one of ${THEMES.join(', ')}`);
+  }
+  const flipMode = property(map, 'flipMode') ?? 'fixed';
+  if (flipMode !== 'fixed' && flipMode !== 'random') {
+    throw new LevelDataError(`"flipMode" must be fixed or random, not "${String(flipMode)}"`);
+  }
+  const number = (key: string, fallback: number) => {
+    const v = property(map, key);
+    return typeof v === 'number' && v > 0 ? v : fallback;
+  };
 
   return {
     name: typeof name === 'string' && name ? name : 'Unnamed level',
+    theme: theme as Theme,
     parMs: par * 1000,
+    flipMode,
+    enemyHealth: number('enemyHealth', 2),
+    enemySpeed: number('enemySpeed', 1),
     spawn: spawns[0],
     checkpoints: ofKind('checkpoint').sort((a, b) => a.x - b.x),
     crown: crowns[0],
     enemies: ofKind('enemy'),
     mushrooms: ofKind('mushroom'),
     guardians,
+    throwers: ofKind('thrower'),
+    seedPods: objectsOf('seedPod').map((o) => {
+      const h = o.properties?.find((p) => p.name === 'height')?.value;
+      return { x: o.x, y: o.y, height: typeof h === 'number' && h > 0 ? h : DEFAULT_POD_HEIGHT };
+    }),
+    fireWalls: ofKind('fireWall'),
     flipOrder: parseFlipOrder(map),
   };
 }

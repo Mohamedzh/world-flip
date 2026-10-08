@@ -4,12 +4,20 @@ export interface LevelEntry {
   id: string;
   /** File under public/assets/levels/. */
   file: string;
+  /** Shown on the world map. */
+  world: number;
+  name: string;
 }
 
-export const LEVELS: LevelEntry[] = [{ id: 'level-1', file: 'level-1.tmj' }];
+export const LEVELS: LevelEntry[] = [
+  { id: 'level-1', file: 'level-1.tmj', world: 1, name: 'Meadow' },
+  { id: 'level-2', file: 'level-2.tmj', world: 2, name: 'Lake' },
+  { id: 'level-3', file: 'level-3.tmj', world: 3, name: 'Mountain' },
+  { id: 'level-4', file: 'level-4.tmj', world: 4, name: 'Sky' },
+];
 
 /** Development-only level with every flip and creature close together: open the game with ?level=test-level */
-export const TEST_LEVEL: LevelEntry = { id: 'test-level', file: 'test-level.tmj' };
+export const TEST_LEVEL: LevelEntry = { id: 'test-level', file: 'test-level.tmj', world: 0, name: 'Test Level' };
 
 export const FIRST_LEVEL = LEVELS[0].id;
 

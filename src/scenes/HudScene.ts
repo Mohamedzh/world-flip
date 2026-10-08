@@ -5,6 +5,7 @@ import { COLORS, VIEW } from '../config';
 import { FLIP_ICONS, POWER_ICONS, TEXTURES } from '../gfx/placeholderTextures';
 import { LOOKS, SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import { FLIP_INFO } from '../systems/flips';
+import { ELEMENTS } from '../systems/powers';
 import { formatTime } from '../systems/math';
 import type { GameScene, HudState, LevelResult } from './GameScene';
 import { SCENES } from './keys';
@@ -20,14 +21,16 @@ const TEXT: Phaser.Types.GameObjects.Text.TextStyle = {
 /** How long the controls reminder stays on screen at the start. */
 const HELP_MS = 8000;
 const HEART_SPACING = 15;
+const POWER_SLOT = 17;
 
 export class HudScene extends Phaser.Scene {
   private hearts: Phaser.GameObjects.Image[] = [];
   private livesIcon!: Phaser.GameObjects.Image;
   private livesText!: Phaser.GameObjects.Text;
-  private powerIcon!: Phaser.GameObjects.Image;
+  private powerIcons: Phaser.GameObjects.Image[] = [];
   private powerCooldown!: Phaser.GameObjects.Rectangle;
-  private powerKey!: Phaser.GameObjects.Text;
+  private powerMarker!: Phaser.GameObjects.Rectangle;
+  private powerX = 0;
   private timeText!: Phaser.GameObjects.Text;
   private flipIcon!: Phaser.GameObjects.Image;
   private flipText!: Phaser.GameObjects.Text;
@@ -49,6 +52,8 @@ export class HudScene extends Phaser.Scene {
   create(): void {
     // The warning shimmer sits under everything else in the HUD.
     this.shimmer = this.add.rectangle(0, 0, VIEW.width, VIEW.height, 0xffffff, 0).setOrigin(0, 0);
+    // A dark strip behind the top bar keeps it readable over ceilings and bright skies.
+    this.add.rectangle(0, 0, VIEW.width, 20, 0x10141c, 0.35).setOrigin(0, 0);
 
     this.hearts = [];
     const { maxHearts } = this.gameScene().hudState;
@@ -59,11 +64,14 @@ export class HudScene extends Phaser.Scene {
     this.livesIcon = this.add.image(afterHearts, 1, LOOKS.knight.sheet, LOOKS.knight.frames[0]).setOrigin(0, 0).setScale(0.75);
     this.livesText = this.add.text(afterHearts + 19, 4, '', TEXT);
 
-    // Active power with a dark overlay that shrinks as it recharges.
-    const powerX = afterHearts + 46;
-    this.powerIcon = this.add.image(powerX, 2, POWER_ICONS.fire).setOrigin(0, 0).setScale(1.5);
-    this.powerCooldown = this.add.rectangle(powerX, 2, 15, 15, 0x10141c, 0.7).setOrigin(0, 0);
-    this.powerKey = this.add.text(powerX + 17, 4, 'K', TEXT);
+    // Owned powers in a row (keys 1-4). The active one is underlined, with a dark overlay
+    // that shrinks as it recharges.
+    this.powerX = afterHearts + 46;
+    this.powerIcons = ELEMENTS.map((e, i) =>
+      this.add.image(this.powerX + i * POWER_SLOT, 2, POWER_ICONS[e]).setOrigin(0, 0).setScale(1.5).setVisible(false),
+    );
+    this.powerCooldown = this.add.rectangle(0, 2, 15, 15, 0x10141c, 0.7).setOrigin(0, 0);
+    this.powerMarker = this.add.rectangle(0, 18, 15, 2, COLORS.crown).setOrigin(0, 0);
 
     this.timeText = this.add.text(VIEW.width - 6, 4, '', TEXT).setOrigin(1, 0);
 
@@ -82,7 +90,7 @@ export class HudScene extends Phaser.Scene {
     const cy = VIEW.height / 2;
     this.bannerText = this.add.text(cx, cy - 40, '', { ...TEXT, fontSize: '14px', align: 'center' }).setOrigin(0.5);
     this.pausedText = this.add
-      .text(cx, cy, 'PAUSED\n\nPress Esc to keep playing', { ...TEXT, fontSize: '14px', align: 'center' })
+      .text(cx, cy, 'PAUSED\n\nEsc: keep playing\nQ: back to the map', { ...TEXT, fontSize: '14px', align: 'center' })
       .setOrigin(0.5);
     this.helpText = this.add
       .text(cx, VIEW.height - 8, 'Move: Arrows/A D   Jump: Space/W   Attack: J   Power: K   Pause: Esc', TEXT)
@@ -100,7 +108,7 @@ export class HudScene extends Phaser.Scene {
     this.timeText.setText(formatTime(s.elapsedMs));
     this.bannerText.setText(s.banner ?? '');
     this.pausedText.setVisible(s.playState === 'paused');
-    this.updatePower(s.power);
+    this.updatePowers(s.powers);
     this.updateGuardian(s.guardian);
     this.updateFlipBar(s.flip, time);
     if (s.result && !this.resultPanel) {
@@ -109,16 +117,16 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
-  private updatePower(power: HudState['power']): void {
-    const visible = power !== null;
-    this.powerIcon.setVisible(visible);
-    this.powerKey.setVisible(visible);
-    this.powerCooldown.setVisible(visible && power.readiness < 1);
-    if (!power) return;
-    this.powerIcon.setTexture(POWER_ICONS[power.element]);
+  private updatePowers(p: HudState['powers']): void {
+    ELEMENTS.forEach((e, i) => this.powerIcons[i].setVisible(p.owned.includes(e)).setAlpha(e === p.active ? 1 : 0.55));
+    const active = p.active ? ELEMENTS.indexOf(p.active) : -1;
+    this.powerMarker.setVisible(active >= 0);
+    this.powerCooldown.setVisible(active >= 0 && p.readiness < 1);
+    if (active < 0) return;
+    const x = this.powerX + active * POWER_SLOT;
+    this.powerMarker.setX(x);
     // The overlay covers the part that is still recharging, shrinking from the top.
-    const left = 1 - power.readiness;
-    this.powerCooldown.setSize(15, 15 * left).setY(2 + 15 * power.readiness);
+    this.powerCooldown.setPosition(x, 2 + 15 * p.readiness).setSize(15, 15 * (1 - p.readiness));
   }
 
   private updateGuardian(guardian: HudState['guardian']): void {

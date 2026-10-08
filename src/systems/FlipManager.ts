@@ -16,12 +16,20 @@ export interface FlipChange {
   to: FlipState;
 }
 
+/**
+ * fixed: the flips follow the list in order and loop (levels 1-3).
+ * random: each flip is picked at random from the list, never the same as the current state (level 4).
+ */
+export type FlipMode = 'fixed' | 'random';
+
 type Listener<T> = (event: T) => void;
 
 export class FlipManager {
   private stateValue: FlipState = 'normal';
-  /** Position in the flip order; -1 until the first flip. */
+  /** Position in the flip order (fixed mode); -1 until the first flip. */
   private orderIndex = -1;
+  /** The flip that comes next, decided early so the warning can show it. */
+  private upcoming: FlipState;
   /** Time since the last flip (or the level start). */
   private sinceFlipMs = 0;
   /** Total time this manager has been updated, used for holds. */
@@ -31,12 +39,15 @@ export class FlipManager {
   private readonly warningListeners: Listener<FlipWarning>[] = [];
   private readonly changeListeners: Listener<FlipChange>[] = [];
 
-  /** Every level starts Normal, then follows `order`, looping back to the start of the list. */
+  /** Every level starts Normal, then follows `order`. `random` returns a number in [0, 1), like Math.random. */
   constructor(
     private readonly order: readonly FlipState[],
     private readonly timing: FlipTiming,
+    private readonly mode: FlipMode = 'fixed',
+    private readonly random: () => number = Math.random,
   ) {
     if (order.length === 0) throw new Error('Flip order must not be empty');
+    this.upcoming = this.pickNext();
   }
 
   get state(): FlipState {
@@ -44,7 +55,7 @@ export class FlipManager {
   }
 
   get next(): FlipState {
-    return this.order[(this.orderIndex + 1) % this.order.length];
+    return this.upcoming;
   }
 
   get warningActive(): boolean {
@@ -72,7 +83,7 @@ export class FlipManager {
     this.sinceFlipMs += deltaMs;
     if (!this.warned && this.sinceFlipMs >= this.timing.intervalMs - this.timing.warningMs) {
       this.warned = true;
-      for (const fn of this.warningListeners) fn({ next: this.next });
+      for (const fn of this.warningListeners) fn({ next: this.upcoming });
     }
     if (this.sinceFlipMs >= this.timing.intervalMs && this.clockMs >= this.holdUntilMs) this.flip();
   }
@@ -89,10 +100,19 @@ export class FlipManager {
 
   private flip(): void {
     const from = this.stateValue;
-    this.orderIndex = (this.orderIndex + 1) % this.order.length;
-    this.stateValue = this.order[this.orderIndex];
+    this.stateValue = this.upcoming;
+    if (this.mode === 'fixed') this.orderIndex = (this.orderIndex + 1) % this.order.length;
+    this.upcoming = this.pickNext();
     this.sinceFlipMs = 0;
     this.warned = false;
     for (const fn of this.changeListeners) fn({ from, to: this.stateValue });
+  }
+
+  private pickNext(): FlipState {
+    if (this.mode === 'fixed') return this.order[(this.orderIndex + 1) % this.order.length];
+    // Random: never repeat the current state (a "flip" to the same rules would change nothing).
+    const choices = this.order.filter((s) => s !== this.stateValue);
+    const pool = choices.length > 0 ? choices : this.order;
+    return pool[Math.min(pool.length - 1, Math.floor(this.random() * pool.length))];
   }
 }

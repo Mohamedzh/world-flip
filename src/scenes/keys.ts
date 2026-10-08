@@ -2,6 +2,7 @@
 
 export const SCENES = {
   boot: 'Boot',
+  map: 'Map',
   select: 'Select',
   game: 'Game',
   hud: 'Hud',

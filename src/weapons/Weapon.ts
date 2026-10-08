@@ -5,12 +5,23 @@ import type { Hero } from '../hero/Hero';
 import type { AttackInput } from '../input/Controls';
 import type { Element } from '../systems/powers';
 
+/** What one hit does to the creatures (and things) it touches. */
+export interface Hit {
+  damage: number;
+  /** Where the hit came from, for knockback direction. */
+  fromX: number;
+  /** The element riding on the hit, if any: fire burns and shatters ice, water pushes and grows pods, snow slows. */
+  element: Element | null;
+  /** Snow that freezes (snowball, ice arrow) rather than slows (frost swing). */
+  freezes?: boolean;
+}
+
 /** What weapons and powers can do to the level. The Game scene implements it. */
 export interface CombatWorld {
-  /** Hits every creature overlapping `area` once. `fromX` is where the hit came from, for knockback. */
-  strike(area: Phaser.Geom.Rectangle, damage: number, fromX: number): void;
+  /** A melee hit on every creature overlapping `area` (and on pellets, pods and fire walls there). */
+  strike(area: Phaser.Geom.Rectangle, hit: Hit): void;
   fireArrow(x: number, y: number, dir: 1 | -1, charged: boolean, element: Element | null): void;
-  /** Casts a power (key K), e.g. throws a fireball. */
+  /** Casts a power (key K): fireball, water wave, snowball or gust. */
   castPower(element: Element, hero: Hero): void;
 }
 

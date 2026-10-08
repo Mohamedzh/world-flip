@@ -1,10 +1,13 @@
 // An arrow flies straight for about 12 tiles, then gravity pulls it down. It follows whatever gravity
 // the world has at that moment, so arrows in flight obey a flip (spec).
-// A fire arrow (bow charged with Fire) lights crates it hits.
+// Charged with a power (spec): fire arrows light crates, water arrows grow seed pods (and put out
+// fire walls), ice arrows freeze an enemy, wind arrows pass through every enemy in line.
 import Phaser from 'phaser';
 import { BOW } from '../config';
 import { TEXTURES } from '../gfx/placeholderTextures';
 import type { Element } from '../systems/powers';
+
+const ARROW_TINT: Record<Element, number> = { fire: 0xff7043, water: 0x4fc3f7, snow: 0xe1f5fe, wind: 0xb2ebf2 };
 
 export class Arrow extends Phaser.Physics.Arcade.Image {
   declare body: Phaser.Physics.Arcade.Body;
@@ -37,7 +40,8 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
     this.body.setVelocityX(dir * BOW.speed);
     this.setRotation(dir > 0 ? 0 : Math.PI);
     if (charged) this.setTint(0xfff59d).setScale(1.25);
-    if (element === 'fire') this.setTint(0xff7043).setScale(1.25);
+    if (element) this.setTint(ARROW_TINT[element]).setScale(1.25);
+    if (element === 'wind') this.piercesLeft = Infinity;
   }
 
   /** Called every frame by the arrows group. */

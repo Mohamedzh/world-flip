@@ -1,6 +1,6 @@
 // Hero select screen, shown before each level (spec). Remembers the last hero in the save.
 import Phaser from 'phaser';
-import { COLORS, DEBUG, VIEW } from '../config';
+import { COLORS, VIEW } from '../config';
 import { TEXTURES } from '../gfx/placeholderTextures';
 import type { HeroKind } from '../hero/Hero';
 import { HERO_INFO } from '../hero/heroes';
@@ -19,26 +19,24 @@ const TEXT: Phaser.Types.GameObjects.Text.TextStyle = {
   align: 'center',
 };
 
-/** Which level to start. In development, ?level=test-level picks another one. */
-function levelToPlay(): string {
-  const asked = DEBUG.enabled ? new URLSearchParams(window.location.search).get('level') : null;
-  return asked && findLevel(asked) ? asked : FIRST_LEVEL;
-}
-
 export class SelectScene extends Phaser.Scene {
   private choice: HeroKind = 'knight';
   private frames: Phaser.GameObjects.Rectangle[] = [];
+  private levelId = FIRST_LEVEL;
 
   constructor() {
     super(SCENES.select);
   }
 
-  create(): void {
+  create(data: { levelId?: string }): void {
+    this.levelId = data.levelId && findLevel(data.levelId) ? data.levelId : FIRST_LEVEL;
     this.choice = saveGame.current.hero;
     this.cameras.main.setBackgroundColor(COLORS.sky);
     const cx = VIEW.width / 2;
     this.add.text(cx, 24, 'WORLD FLIP', { ...TEXT, fontSize: '22px', strokeThickness: 4 }).setOrigin(0.5);
-    this.add.text(cx, 48, 'Choose your hero', { ...TEXT, fontSize: '12px' }).setOrigin(0.5);
+    const level = findLevel(this.levelId)!;
+    const title = level.world > 0 ? `World ${level.world}: ${level.name}` : level.name;
+    this.add.text(cx, 48, `${title}  -  Choose your hero`, { ...TEXT, fontSize: '12px' }).setOrigin(0.5);
 
     this.frames = KINDS.map((kind, i) => {
       const x = cx + (i === 0 ? -80 : 80);
@@ -53,20 +51,21 @@ export class SelectScene extends Phaser.Scene {
     });
 
     // Best result so far on the level about to be played.
-    const best = saveGame.current.levels[levelToPlay()]?.bestStars ?? 0;
+    const best = saveGame.current.levels[this.levelId]?.bestStars ?? 0;
     if (best > 0) {
       this.add.text(cx - 46, VIEW.height - 40, 'Best:', TEXT).setOrigin(0, 0.5);
       for (let i = 0; i < 3; i++) {
         this.add.image(cx + 4 + i * 14, VIEW.height - 40, i < best ? TEXTURES.starFull : TEXTURES.starEmpty);
       }
     }
-    this.add.text(cx, VIEW.height - 18, 'Left / Right to choose    Enter or J to start', TEXT).setOrigin(0.5);
+    this.add.text(cx, VIEW.height - 18, 'Left / Right to choose    Enter or J to start    Esc: map', TEXT).setOrigin(0.5);
 
     const kb = this.input.keyboard!;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => kb.removeAllListeners());
     const toggle = () => this.pick(this.choice === 'knight' ? 'ranger' : 'knight');
     for (const key of ['LEFT', 'RIGHT', 'A', 'D']) kb.on(`keydown-${key}`, toggle);
     for (const key of ['ENTER', 'SPACE', 'J']) kb.on(`keydown-${key}`, () => this.start());
+    kb.on('keydown-ESC', () => this.scene.start(SCENES.map, { focus: this.levelId }));
     this.pick(this.choice);
   }
 
@@ -82,6 +81,6 @@ export class SelectScene extends Phaser.Scene {
 
   private start(): void {
     saveGame.update((s) => ({ ...s, hero: this.choice }));
-    this.scene.start(SCENES.game, { hero: this.choice, levelId: levelToPlay() });
+    this.scene.start(SCENES.game, { hero: this.choice, levelId: this.levelId });
   }
 }

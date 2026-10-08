@@ -1,5 +1,6 @@
 // The Ranger's bow: tap to shoot, hold 0.8 s for a charged shot that does 2 damage and pierces one enemy.
-// Charged with Fire it shoots a fire arrow that lights crates from a distance (spec).
+// Charged with a power it shoots that element's arrow: fire lights crates, water grows seed pods
+// from afar, ice freezes one enemy, wind passes through every enemy in line (spec).
 import { sfx } from '../audio/sfx';
 import { BOW } from '../config';
 import type { Hero } from '../hero/Hero';

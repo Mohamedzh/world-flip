@@ -35,6 +35,9 @@ export const LOOKS = {
   ranger: look('ranger', [0, 1]),
   walker: look('walker', [18, 19]),
   emberBeetle: look('ember-beetle', [21, 22]),
+  thrower: look('thrower', [4, 5]),
+  tideFrog: look('tide-frog', [13, 14]),
+  flyer: look('flyer', [24, 25]),
 } as const;
 
 /** Single frames from the tiles sheet. */
@@ -44,12 +47,25 @@ export const TILE_FRAMES = {
   mushroom: 128,
   flag: 111,
   flagWave: 112,
+  /** A seed pod, and what it grows into: a trunk topped by a leafy platform. */
+  seedPod: 124,
+  trunk: 116,
+  leafLeft: 77,
+  leaf: 78,
+  leafRight: 79,
+  /** Water surface, used for the puddle a Water wave leaves across a gap. */
+  waterTop: 33,
 } as const;
 
 export const FLAG_ANIM = 'flag-wave';
 
-/** Background pieces for World 1 (the green set): sky, hills and the low ground behind them. */
-export const MEADOW_BACKGROUND = { sky: 6, hills: 14, low: 22 } as const;
+/** Background pieces per world: the sky color comes from `sky`; `hills` and `low` are two scrolling bands. */
+export const BACKGROUNDS = {
+  meadow: { sky: 6, hills: 14, low: 22 },
+  lake: { sky: 6, hills: 14, low: 22 },
+  mountain: { sky: 0, hills: 11, low: 19 },
+  sky: { sky: 1, hills: 8, low: 16 },
+} as const;
 
 export function createAnimations(scene: Phaser.Scene): void {
   for (const l of Object.values(LOOKS)) {

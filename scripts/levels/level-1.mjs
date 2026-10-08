@@ -47,6 +47,7 @@ g.place('enemy', 170, 11).place('crown', 184, 11);
 
 writeLevel(g, new URL('../../public/assets/levels/level-1.tmj', import.meta.url), {
   name: 'Meadow',
+  theme: 'meadow',
   flipOrder: 'lowGravity,colorSwap,normal',
   parTimeSec: 180,
 });

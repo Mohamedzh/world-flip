@@ -6,7 +6,7 @@ import { deflateSync } from 'node:zlib';
 
 const TILE = 18;
 // Tile order matters: tile id N in the level file is column N-1 here.
-const TILES = ['grass', 'dirt', 'orange', 'blue'];
+const TILES = ['grass', 'dirt', 'orange', 'blue', 'ice'];
 const OUT = new URL('../public/assets/tiles/placeholder-tiles.png', import.meta.url);
 
 const hex = (h) => [(h >> 16) & 255, (h >> 8) & 255, h & 255, 255];
@@ -19,6 +19,9 @@ const C = {
   orangeDark: hex(0xb85f0e),
   blue: hex(0x3b82f6),
   blueDark: hex(0x1e4fa8),
+  ice: hex(0xb3e5fc),
+  iceLight: hex(0xf1fbff),
+  iceDark: hex(0x4fa3d1),
 };
 
 // Each painter returns the RGBA color for pixel (x, y) inside one tile.
@@ -28,6 +31,8 @@ const painters = {
   // Orange blocks carry diagonal stripes, blue blocks carry dots, so they differ without color.
   orange: (x, y) => (border(x, y) || (x + y) % 6 < 2 ? C.orangeDark : C.orange),
   blue: (x, y) => (border(x, y) || (x % 6 === 3 && y % 6 === 3) ? C.blueDark : C.blue),
+  // Ice bridges (Snow): pale blue with white glints.
+  ice: (x, y) => (border(x, y) ? C.iceDark : (x - y + 18) % 9 === 0 && x > 2 && x < 15 ? C.iceLight : C.ice),
 };
 function border(x, y) {
   return x === 0 || y === 0 || x === TILE - 1 || y === TILE - 1;

@@ -2,7 +2,7 @@
 import type Phaser from 'phaser';
 import { LOOKS, type Look } from '../gfx/sprites';
 import type { Point } from '../systems/CheckpointTracker';
-import type { PowerSystem } from '../systems/powers';
+import type { Element, PowerSystem } from '../systems/powers';
 import { Bow } from '../weapons/Bow';
 import { Sword } from '../weapons/Sword';
 import type { CombatWorld, Weapon } from '../weapons/Weapon';
@@ -52,8 +52,22 @@ export const HERO_INFO: Record<HeroKind, { name: string; look: Look; lines: stri
   },
 };
 
-/** How the active power works with each hero's weapon, shown when a power is earned. */
-export const POWER_HINT: Record<HeroKind, string> = {
-  knight: 'Tap K: fireball\nHold K + press J: flaming swing',
-  ranger: 'Tap K: fireball\nHold K + press J: fire arrow',
+/** How each power works, and with each hero's weapon, shown when the power is earned. */
+export const POWER_HINT: Record<Element, Record<HeroKind, string>> = {
+  fire: {
+    knight: 'Tap K: fireball\nHold K + press J: flaming swing',
+    ranger: 'Tap K: fireball\nHold K + press J: fire arrow',
+  },
+  water: {
+    knight: 'Tap K: water wave\n(pushes, grows seed pods, puts out fire)\nHold K + press J: wave slash',
+    ranger: 'Tap K: water wave\n(pushes, grows seed pods, puts out fire)\nHold K + press J: water arrow',
+  },
+  snow: {
+    knight: 'Tap K: snowball\n(freezes enemies and water)\nHold K + press J: frost swing',
+    ranger: 'Tap K: snowball\n(freezes enemies and water)\nHold K + press J: ice arrow',
+  },
+  wind: {
+    knight: 'Tap K: gust\nJump in the air: double jump, hold to glide\nHold K + press J: spin attack',
+    ranger: 'Tap K: gust\nJump in the air: double jump, hold to glide\nHold K + press J: wind arrow',
+  },
 };

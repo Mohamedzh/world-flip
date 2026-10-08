@@ -1,10 +1,13 @@
-// One playable level: tiles, hero, creatures, guardian, checkpoints, pits, the crown,
-// world flips, combat, powers, stars and saving.
+// One playable level: tiles, hero, creatures, guardian, checkpoints, pits, water, the crown,
+// world flips, combat, the four powers and their combos, stars and saving.
 import Phaser from 'phaser';
-import { EmberBeetle } from '../actors/EmberBeetle';
+import type { ActorWorld } from '../actors/ActorWorld';
+import { FireWall } from '../actors/FireWall';
+import { createGuardian, Guardian } from '../actors/guardians';
 import { Mushroom } from '../actors/Mushroom';
 import { PowerOrb } from '../actors/PowerOrb';
-import { Walker } from '../actors/Walker';
+import { Thrower } from '../actors/Thrower';
+import { BASIC_WALKER, Walker } from '../actors/Walker';
 import { sfx } from '../audio/sfx';
 import {
   CAMERA,
@@ -20,10 +23,13 @@ import {
   PHYSICS,
   POWERS,
   RESPAWN,
+  THROWER,
   TILE,
+  WATER,
+  WIND,
 } from '../config';
 import { TEXTURES } from '../gfx/placeholderTextures';
-import { FLAG_ANIM, MEADOW_BACKGROUND, SHEETS, TILE_FRAMES } from '../gfx/sprites';
+import { BACKGROUNDS, FLAG_ANIM, SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import type { Hero, HeroKind } from '../hero/Hero';
 import { createHero, POWER_HINT } from '../hero/heroes';
 import { Controls } from '../input/Controls';
@@ -41,17 +47,20 @@ import { saveGame } from '../saveGame';
 import { CheckpointTracker, type Point } from '../systems/CheckpointTracker';
 import { touchEffect, weaponHitEffect, type HitEffect } from '../systems/combat';
 import { FlipManager } from '../systems/FlipManager';
-import { FLIP_INFO, rulesFor, type FlipState, type WorldRules } from '../systems/flips';
+import { FLIP_INFO, rulesFor, type FlipState, type GravityDir, type WorldRules } from '../systems/flips';
 import { HeroVitals } from '../systems/HeroVitals';
 import { ELEMENT_INFO, ELEMENTS, PowerSystem, type Element } from '../systems/powers';
 import { recordLevel, starsFor, withPower } from '../systems/progress';
 import { findFreeSpot, overlapsSolid } from '../systems/pushOut';
 import { Arrow } from '../weapons/Arrow';
 import { Fireball } from '../weapons/Fireball';
-import type { CombatWorld } from '../weapons/Weapon';
+import { Pellet, puff, Snowball, WaterWave } from '../weapons/projectiles';
+import type { CombatWorld, Hit } from '../weapons/Weapon';
 import { Burnables } from '../world/Burnables';
 import { ColorBlocks } from '../world/ColorBlocks';
-import { ASSETS, SCENES } from './keys';
+import { SeedPod, SeedPods } from '../world/SeedPods';
+import { WaterWorld } from '../world/WaterWorld';
+import { SCENES, ASSETS } from './keys';
 
 export type PlayState = 'playing' | 'paused' | 'dying' | 'won';
 
@@ -82,14 +91,14 @@ export interface HudState {
   playState: PlayState;
   banner: string | null;
   flip: { state: FlipState; next: FlipState; msUntilFlip: number; warning: boolean };
-  /** The active power and how recharged it is (1 = ready); null before any power is earned. */
-  power: { element: Element; readiness: number; owned: Element[] } | null;
+  /** Owned powers, the active one, and how recharged it is (1 = ready). */
+  powers: { owned: Element[]; active: Element | null; readiness: number };
   /** The guardian's health bar, while the hero is near it. */
   guardian: { name: string; health: number } | null;
   result: LevelResult | null;
 }
 
-export class GameScene extends Phaser.Scene implements CombatWorld {
+export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
   private heroKind: HeroKind = 'knight';
   private levelId = FIRST_LEVEL;
   private hero!: Hero;
@@ -103,12 +112,18 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
   private ground!: Phaser.Tilemaps.TilemapLayer;
   private colorBlocks!: ColorBlocks;
   private burnables!: Burnables;
+  private water!: WaterWorld;
+  private seedPods!: SeedPods;
   private enemies!: Phaser.Physics.Arcade.Group;
   private mushrooms!: Phaser.Physics.Arcade.Group;
   private arrows!: Phaser.Physics.Arcade.Group;
   private fireballs!: Phaser.Physics.Arcade.Group;
+  private waves!: Phaser.Physics.Arcade.Group;
+  private snowballs!: Phaser.Physics.Arcade.Group;
+  private pellets!: Phaser.Physics.Arcade.Group;
   private orbs!: Phaser.Physics.Arcade.Group;
-  private guardians: EmberBeetle[] = [];
+  private fireWalls!: Phaser.Physics.Arcade.StaticGroup;
+  private guardians: Guardian[] = [];
   private checkpointFlags: Phaser.Physics.Arcade.Sprite[] = [];
   private background: Phaser.GameObjects.TileSprite[] = [];
   private mapCols = 0;
@@ -122,6 +137,10 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
 
   constructor() {
     super(SCENES.game);
+  }
+
+  get gravityDir(): GravityDir {
+    return this.rules?.gravityDir ?? 1;
   }
 
   get hudState(): HudState {
@@ -142,9 +161,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
         msUntilFlip: this.flips.msUntilFlip,
         warning: this.flips.warningActive,
       },
-      power: active
-        ? { element: active, readiness: this.powers.readiness(active, now), owned: this.powers.ownedPowers }
-        : null,
+      powers: { owned: this.powers.ownedPowers, active, readiness: active ? this.powers.readiness(active, now) : 0 },
       guardian: this.nearbyGuardian(),
       result: this.result,
     };
@@ -152,7 +169,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
 
   create(data: GameSceneData): void {
     // The scene clock only catches up with the game on the next frame; anything timed during
-    // create (banner, start protection, the guardian's first charge) needs the real time now.
+    // create (banner, start protection, the guardian's first attack) needs the real time now.
     // (loop.now is the frame timestamp that scene clocks use; loop.time counts from game start instead.)
     this.time.now = this.game.loop.now;
     this.heroKind = data.hero ?? this.heroKind;
@@ -172,14 +189,14 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     this.checkpoints = new CheckpointTracker(this.level.spawn, this.level.checkpoints);
     this.hero = createHero(this.heroKind, this, this.level.spawn, this, this.powers);
     this.controls = new Controls(this);
-    this.arrows = this.memberGroup();
-    this.fireballs = this.memberGroup();
-    this.orbs = this.memberGroup();
+    for (const key of ['arrows', 'fireballs', 'waves', 'snowballs', 'pellets', 'orbs'] as const) {
+      this[key] = this.memberGroup();
+    }
     this.spawnCreatures();
     this.addColliders();
     this.setUpCamera();
 
-    this.flips = new FlipManager(this.level.flipOrder, FLIPS);
+    this.flips = new FlipManager(this.level.flipOrder, FLIPS, this.level.flipMode);
     this.flips.onWarning(() => sfx.warningChime());
     this.flips.onChanged(({ to }) => this.onFlip(to));
     this.applyRules('normal');
@@ -199,20 +216,47 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     if (this.playState !== 'playing') return;
     this.hero.update(this.controls.read(), delta, now);
     this.hero.showInvulnerable(this.vitals.isInvulnerable(now), now);
+    this.updateProjectiles();
     this.removeFallenCreatures();
-    if (this.hero.y > this.mapRows * TILE + LEVEL.fallDeathMargin) this.die();
+    const hb = this.hero.body;
+    const fellOut = this.gravityDir > 0 && this.hero.y > this.mapRows * TILE + LEVEL.fallDeathMargin;
+    if (fellOut || this.water.inWater(hb.x, hb.y, hb.width, hb.height)) this.die();
+  }
+
+  // ---- ActorWorld: used by creatures ----
+
+  heroPosition(): Point {
+    return { x: this.hero.x, y: this.hero.body.center.y };
+  }
+
+  throwPellet(x: number, y: number, dir: 1 | -1): void {
+    this.pellets.add(new Pellet(this, x, y, dir));
+  }
+
+  /** Solid check for creatures looking ahead: the map's sides count as walls, outside top/bottom are open. */
+  isSolidAt(x: number, y: number): boolean {
+    const col = Math.floor(x / TILE);
+    const row = Math.floor(y / TILE);
+    if (col < 0 || col >= this.mapCols) return true;
+    if (row < 0 || row >= this.mapRows) return row < 0;
+    return this.isSolidTile(col, row);
   }
 
   // ---- CombatWorld: used by the heroes' weapons and powers ----
 
-  strike(area: Phaser.Geom.Rectangle, damage: number, fromX: number): void {
+  strike(area: Phaser.Geom.Rectangle, hit: Hit): void {
     for (const c of this.creatures()) {
       const b = c.body;
       if (!b.enable) continue;
       if (Phaser.Geom.Intersects.RectangleToRectangle(area, new Phaser.Geom.Rectangle(b.x, b.y, b.width, b.height))) {
-        this.weaponHit(c, damage, fromX);
+        this.weaponHit(c, hit);
       }
     }
+    // The Knight's swing knocks back enemy pellets (spec).
+    for (const p of this.pellets.getChildren() as Pellet[]) {
+      if (!p.deflected && Phaser.Geom.Intersects.RectangleToRectangle(area, p.getBounds())) p.deflect();
+    }
+    if (hit.element === 'water') this.waterTouches(area);
   }
 
   fireArrow(x: number, y: number, dir: 1 | -1, charged: boolean, element: Element | null): void {
@@ -220,11 +264,26 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
   }
 
   castPower(element: Element, hero: Hero): void {
-    if (element === 'fire') {
-      this.fireballs.add(new Fireball(this, hero.x + hero.facing * 8, hero.body.center.y - 2, hero.facing));
-      sfx.shoot();
+    const dir = hero.facing;
+    const g = this.gravityDir;
+    switch (element) {
+      case 'fire':
+        this.fireballs.add(new Fireball(this, hero.x + dir * 8, hero.body.center.y - 2 * g, dir, g));
+        break;
+      case 'water': {
+        const feet = g > 0 ? hero.body.bottom : hero.body.top;
+        const floorRow = g > 0 ? Math.round(feet / TILE) : Math.round(feet / TILE) - 1;
+        this.waves.add(new WaterWave(this, hero.x + dir * 10, feet, dir, floorRow, g));
+        break;
+      }
+      case 'snow':
+        this.snowballs.add(new Snowball(this, hero.x + dir * 8, hero.body.center.y, dir));
+        break;
+      case 'wind':
+        this.gust(hero);
+        break;
     }
-    // Water, snow and wind arrive in milestone 4.
+    sfx.shoot();
   }
 
   /** Costs hearts, e.g. from a creature's touch. */
@@ -241,7 +300,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
   // ---- Level setup ----
 
   private buildLevel(): void {
-    // The raw Tiled JSON gives the objects, flip order and par time; Phaser builds the tile layers.
+    // The raw Tiled JSON gives the objects, flips and settings; Phaser builds the tile layers.
     this.level = parseLevel(this.cache.tilemap.get(this.levelId).data as TiledMap);
     this.createBackground();
     const map = this.make.tilemap({ key: this.levelId });
@@ -250,6 +309,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     if (!kenney || !blocks) throw new Error('A tileset is missing from the level file');
     const tilesets = [kenney, blocks];
     if (map.getLayerIndex(DECOR_LAYER) !== null) map.createLayer(DECOR_LAYER, tilesets);
+    const waterLayer = map.createLayer(TILE_LAYERS.water, tilesets)!;
     const blue = map.createLayer(TILE_LAYERS.blue, tilesets)!;
     this.ground = map.createLayer(TILE_LAYERS.ground, tilesets)!;
     const orange = map.createLayer(TILE_LAYERS.orange, tilesets)!;
@@ -258,8 +318,11 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     this.burnables = new Burnables(this, map.createLayer(TILE_LAYERS.burnable, tilesets)!);
     this.mapCols = map.width;
     this.mapRows = map.height;
+    const solidTile = (c: number, r: number) => this.isSolidTile(c, r);
+    this.water = new WaterWorld(this, map, waterLayer, { kenney, blocks }, solidTile);
+    this.seedPods = new SeedPods(this, map, tilesets, this.level.seedPods, solidTile, () => this.pushOutOfSolids());
 
-    // Closed at the top (low-gravity jumps bump the ceiling), open at the bottom so pits work.
+    // Closed at the top (low-gravity and upside-down heroes bump the ceiling), open at the bottom for pits.
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels + LEVEL.fallDeathMargin * 4);
     this.physics.world.setBoundsCollision(true, true, true, false);
 
@@ -268,10 +331,13 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
       flag.setOrigin(0.5, 1).refreshBody();
       return flag.setTint(COLORS.checkpointOff);
     });
+    this.fireWalls = this.physics.add.staticGroup();
+    for (const p of this.level.fireWalls) this.fireWalls.add(new FireWall(this, p, (x, y) => this.isSolidAt(x, y)));
   }
 
-  /** World 1's meadow backdrop: sky, then hills and low ground that scroll slower than the level. */
+  /** The world's backdrop: a sky color, then two bands of scenery that scroll slower than the level. */
   private createBackground(): void {
+    const look = BACKGROUNDS[this.level.theme];
     const scale = 3;
     const w = Math.ceil(this.scale.width / scale) + 24;
     const piece = (frame: number, y: number) =>
@@ -282,9 +348,9 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
         .setScrollFactor(0)
         .setDepth(-10);
     const h = this.scale.height;
-    const sky = this.textures.getPixel(4, 4, SHEETS.backgrounds, MEADOW_BACKGROUND.sky);
+    const sky = this.textures.getPixel(4, 4, SHEETS.backgrounds, look.sky);
     if (sky) this.cameras.main.setBackgroundColor(sky.color);
-    this.background = [piece(MEADOW_BACKGROUND.hills, h - 24 * scale * 2), piece(MEADOW_BACKGROUND.low, h - 24 * scale)];
+    this.background = [piece(look.hills, h - 24 * scale * 2), piece(look.low, h - 24 * scale)];
   }
 
   private scrollBackground(): void {
@@ -294,13 +360,19 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
   private spawnCreatures(): void {
     this.enemies = this.memberGroup();
     this.mushrooms = this.memberGroup();
-    const solidAt = (x: number, y: number) => this.isSolidAt(x, y);
-    for (const p of this.level.enemies) this.enemies.add(new Walker(this, p, solidAt));
+    // Basic enemies get tougher and faster in later worlds (spec).
+    const style = {
+      ...BASIC_WALKER,
+      health: this.level.enemyHealth,
+      speed: ENEMY.walkerSpeed * this.level.enemySpeed,
+    };
+    for (const p of this.level.enemies) this.enemies.add(new Walker(this, p, this, style));
+    for (const p of this.level.throwers) this.enemies.add(new Thrower(this, p, this, this.level.enemyHealth));
     for (const p of this.level.mushrooms) this.mushrooms.add(new Mushroom(this, p));
     for (const g of this.level.guardians) {
-      const beetle = new EmberBeetle(this, g, solidAt, () => this.hero);
-      this.guardians.push(beetle);
-      this.enemies.add(beetle);
+      const guardian = createGuardian(g.kind, this, g, this);
+      this.guardians.push(guardian);
+      this.enemies.add(guardian);
     }
   }
 
@@ -314,42 +386,95 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
 
   private addColliders(): void {
     const crates = this.burnables.layer;
-    const solids = [this.ground, ...this.colorBlocks.layers, crates];
+    const solids = [this.ground, ...this.colorBlocks.layers, crates, this.water.iceLayer, this.seedPods.leafLayer];
+    const now = () => this.time.now;
     this.physics.add.collider(this.hero, solids);
     this.physics.add.collider([this.enemies, this.mushrooms], solids);
+    this.physics.add.collider([this.enemies, this.mushrooms], this.fireWalls);
+    // Fire walls block the hero and burn on touch.
+    this.physics.add.collider(this.hero, this.fireWalls, (_h, w) => this.hurtHero(1, (w as FireWall).x));
+    // A frozen enemy is a solid ice block to stand on.
+    this.physics.add.collider(this.hero, this.enemies, undefined, (_h, e) => (e as Walker).isFrozen(now()));
 
     // Arrows stop on solid blocks and fly through ghost blocks, since ghosts have no collision.
-    // A fire arrow lights the crate it hits.
     this.physics.add.collider(this.arrows, solids, (a, t) => {
       const arrow = a as Arrow;
       const tile = t as Phaser.Tilemaps.Tile;
       if (arrow.element === 'fire' && tile.tilemapLayer === crates) this.burnables.ignite(tile.x, tile.y);
       arrow.destroy();
     });
+    this.physics.add.overlap(this.arrows, this.fireWalls, (a, w) => {
+      if ((a as Arrow).element === 'water') (w as FireWall).extinguish();
+      a.destroy();
+    });
+    this.physics.add.overlap(this.arrows, this.seedPods.group, (a, pod) => {
+      if ((a as Arrow).element !== 'water') return;
+      this.seedPods.grow(pod as SeedPod);
+      a.destroy();
+    });
+
     // Fireballs bounce along floors, burn out against walls, and light crates.
     this.physics.add.collider(this.fireballs, solids, (f, t) => {
       const fireball = f as Fireball;
       const tile = t as Phaser.Tilemaps.Tile;
+      const b = fireball.body;
       if (tile.tilemapLayer === crates) {
         this.burnables.ignite(tile.x, tile.y);
         fireball.burnOut();
-      } else if (fireball.body.blocked.left || fireball.body.blocked.right) {
+      } else if (b.blocked.left || b.blocked.right) {
         fireball.burnOut();
-      } else if (fireball.body.blocked.down) {
-        fireball.bounce();
+      } else if (this.gravityDir > 0 ? b.blocked.down : b.blocked.up) {
+        fireball.bounce(this.gravityDir);
       } else {
         fireball.burnOut();
       }
     });
+    this.physics.add.overlap(this.fireballs, this.fireWalls, (f) => (f as Fireball).burnOut());
 
-    this.physics.add.overlap(this.hero, [this.enemies, this.mushrooms], (_h, c) => this.heroTouches(c as Creature));
-    this.physics.add.overlap(this.arrows, [this.enemies, this.mushrooms], (a, c) =>
-      this.arrowHits(a as Arrow, c as Creature),
-    );
-    this.physics.add.overlap(this.fireballs, [this.enemies, this.mushrooms], (f, c) => {
-      const fireball = f as Fireball;
-      if (!fireball.active) return;
-      if (this.weaponHit(c as Creature, fireball.damage, fireball.x).kind !== 'none') fireball.burnOut();
+    // Water waves stop at walls; snowballs and pellets burst on anything solid.
+    this.physics.add.collider(this.waves, solids, (w) => {
+      const wave = w as WaterWave;
+      if (wave.body.blocked.left || wave.body.blocked.right) wave.destroy();
+    });
+    this.physics.add.collider(this.snowballs, solids, (s) => (s as Snowball).burst());
+    this.physics.add.collider(this.pellets, solids, (p) => (p as Pellet).burst());
+    this.physics.add.overlap([this.snowballs, this.pellets], this.fireWalls, (p) => (p as Snowball | Pellet).burst());
+
+    // Hitting creatures.
+    const creatures = [this.enemies, this.mushrooms];
+    this.physics.add.overlap(this.hero, creatures, (_h, c) => this.heroTouches(c as Creature));
+    this.physics.add.overlap(this.arrows, creatures, (a, c) => this.arrowHits(a as Arrow, c as Creature));
+    this.physics.add.overlap(this.fireballs, creatures, (f, c) => {
+      const fb = f as Fireball;
+      if (!fb.active) return;
+      const effect = this.weaponHit(c as Creature, { damage: fb.damage, fromX: fb.x, element: 'fire' });
+      if (effect.kind !== 'none') fb.burnOut();
+    });
+    this.physics.add.overlap(this.waves, creatures, (w, c) => {
+      const wave = w as WaterWave;
+      if (wave.hitTargets.has(c as Creature)) return;
+      wave.hitTargets.add(c as Creature);
+      this.weaponHit(c as Creature, { damage: 0, fromX: wave.x - wave.dir * 20, element: 'water' });
+    });
+    this.physics.add.overlap(this.waves, this.seedPods.group, (_w, pod) => this.seedPods.grow(pod as SeedPod));
+    this.physics.add.overlap(this.waves, this.fireWalls, (_w, wall) => (wall as FireWall).extinguish());
+    this.physics.add.overlap(this.snowballs, creatures, (s, c) => {
+      const ball = s as Snowball;
+      if (!ball.active) return;
+      this.weaponHit(c as Creature, { damage: 0, fromX: ball.x, element: 'snow', freezes: true });
+      ball.burst();
+    });
+    this.physics.add.overlap(this.hero, this.pellets, (_h, p) => {
+      const pellet = p as Pellet;
+      if (pellet.deflected || !pellet.active) return;
+      this.hurtHero(1, pellet.x);
+      pellet.burst();
+    });
+    this.physics.add.overlap(this.pellets, this.enemies, (p, e) => {
+      const pellet = p as Pellet;
+      if (!pellet.deflected || !pellet.active) return;
+      this.weaponHit(e as Walker, { damage: THROWER.deflectDamage, fromX: pellet.x, element: null });
+      pellet.burst();
     });
     this.physics.add.overlap(this.hero, this.orbs, (_h, o) => this.collectOrb(o as PowerOrb));
 
@@ -373,14 +498,21 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => kb.removeAllListeners());
     kb.on('keydown-ESC', () => this.togglePause());
     kb.on('keydown-ENTER', () => {
-      if (this.playState !== 'won') return;
-      this.scene.stop(SCENES.hud);
-      this.scene.start(SCENES.select);
+      if (this.playState === 'won') this.backToMap();
+    });
+    kb.on('keydown-Q', () => {
+      if (this.playState === 'paused') this.backToMap();
     });
     // Switch power: L cycles, 1-4 pick fire, water, snow, wind.
     kb.on('keydown-L', () => this.powers.cycle());
     ['ONE', 'TWO', 'THREE', 'FOUR'].forEach((key, i) => kb.on(`keydown-${key}`, () => this.powers.select(ELEMENTS[i])));
     if (DEBUG.enabled) this.addDebugKeys(kb);
+  }
+
+  private backToMap(): void {
+    this.physics.resume();
+    this.scene.stop(SCENES.hud);
+    this.scene.start(SCENES.map, { focus: this.levelId });
   }
 
   // ---- World flips ----
@@ -395,9 +527,15 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
 
   /** The only place world rules change. A flip keeps everyone's velocity; only the physics changes. */
   private applyRules(state: FlipState): void {
+    const before = this.rules;
     this.rules = rulesFor(state, FLIPS.lowGravityScale);
-    this.physics.world.gravity.y = PHYSICS.gravity * this.rules.gravityScale;
+    const g = this.rules.gravityDir;
+    this.physics.world.gravity.y = PHYSICS.gravity * this.rules.gravityScale * g;
     this.hero.setMaxFallSpeed(this.rules.gravityScale < 1 ? FLIPS.lowGravityMaxFallSpeed : PHYSICS.maxFallSpeed);
+    if (!before || before.gravityDir !== g) {
+      this.hero.setGravityDir(g);
+      for (const c of this.creatures()) c.setGravityDir(g);
+    }
     if (this.colorBlocks.apply(this.rules.colorsSwapped)) this.pushOutOfSolids();
     const now = this.time.now;
     for (const e of this.walkers()) e.setCalm(this.rules.friendsHostile);
@@ -415,34 +553,100 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
       const b = s.body;
       const rect = { x: b.x, y: b.y, width: b.width, height: b.height };
       if (!overlapsSolid(rect, TILE, solid)) continue;
-      const spot = findFreeSpot(rect, TILE, solid);
+      const spot = findFreeSpot(rect, TILE, solid, 4, this.gravityDir);
       if (spot) b.reset(s.x + spot.x - b.x, s.y + spot.y - b.y);
     }
-    for (const group of [this.arrows, this.fireballs]) {
-      for (const p of group.getChildren() as (Arrow | Fireball)[]) {
-        if (overlapsSolid({ x: p.body.x, y: p.body.y, width: p.body.width, height: p.body.height }, TILE, solid)) {
-          p.destroy();
-        }
+    for (const group of [this.arrows, this.fireballs, this.snowballs, this.pellets]) {
+      for (const p of group.getChildren() as Phaser.Physics.Arcade.Image[]) {
+        const pb = p.body as Phaser.Physics.Arcade.Body;
+        if (overlapsSolid({ x: pb.x, y: pb.y, width: pb.width, height: pb.height }, TILE, solid)) p.destroy();
       }
     }
   }
 
   private isSolidTile(col: number, row: number): boolean {
     return (
-      this.ground.hasTileAt(col, row) || this.colorBlocks.isSolidTile(col, row) || this.burnables.isSolidTile(col, row)
+      this.ground.hasTileAt(col, row) ||
+      this.colorBlocks.isSolidTile(col, row) ||
+      this.burnables.isSolidTile(col, row) ||
+      this.water.isIce(col, row) ||
+      this.seedPods.isSolidTile(col, row)
     );
   }
 
-  /** Solid check for creatures looking ahead: the map's sides count as walls, below the map is a pit. */
-  private isSolidAt(x: number, y: number): boolean {
-    const col = Math.floor(x / TILE);
-    const row = Math.floor(y / TILE);
-    if (col < 0 || col >= this.mapCols) return true;
-    if (row < 0 || row >= this.mapRows) return row < 0;
-    return this.isSolidTile(col, row);
+  // ---- Powers ----
+
+  /** Wind: a gust in front of the hero that throws enemies back (off ledges) and blows pellets away. */
+  private gust(hero: Hero): void {
+    const dir = hero.facing;
+    const b = hero.body;
+    const area = new Phaser.Geom.Rectangle(
+      dir > 0 ? b.right : b.left - WIND.gustWidth,
+      b.center.y - WIND.gustHeight / 2,
+      WIND.gustWidth,
+      WIND.gustHeight,
+    );
+    const now = this.time.now;
+    for (const e of this.walkers()) {
+      if (e.body.enable && Phaser.Geom.Intersects.RectangleToRectangle(area, e.getBounds())) {
+        e.push(dir * WIND.gustPushX, -this.gravityDir * WIND.gustPushY, WIND.gustPushMs, now);
+      }
+    }
+    for (const p of this.pellets.getChildren() as Pellet[]) {
+      if (Phaser.Geom.Intersects.RectangleToRectangle(area, p.getBounds())) p.burst();
+    }
+    // Fire plus Wind: a fireball caught in the gust splits into a spreading fan of three.
+    for (const fb of this.fireballs.getChildren() as Fireball[]) {
+      if (fb.spread || !Phaser.Geom.Intersects.RectangleToRectangle(area, fb.getBounds())) continue;
+      fb.spread = true;
+      for (const vy of [-220, 60]) {
+        const extra = new Fireball(this, fb.x, fb.y, dir, this.gravityDir, vy);
+        extra.spread = true;
+        this.fireballs.add(extra);
+      }
+    }
+    this.showGust(area, dir);
   }
 
-  // ---- Creatures, combat and powers ----
+  private showGust(area: Phaser.Geom.Rectangle, dir: 1 | -1): void {
+    for (let i = 0; i < 5; i++) {
+      const y = area.y + 4 + (i * (area.height - 8)) / 4;
+      const startX = dir > 0 ? area.x : area.right;
+      const line = this.add.rectangle(startX, y, 10, 2, 0xe0f7fa, 0.9).setDepth(5);
+      this.tweens.add({
+        targets: line,
+        x: startX + dir * area.width,
+        scaleX: 2.5,
+        alpha: 0,
+        delay: i * 30,
+        duration: 260,
+        onComplete: () => line.destroy(),
+      });
+    }
+  }
+
+  /** Water touching an area: grows seed pods and puts out fire walls there. */
+  private waterTouches(area: Phaser.Geom.Rectangle): void {
+    this.seedPods.waterArea(area);
+    for (const w of this.fireWalls.getChildren() as FireWall[]) {
+      if (Phaser.Geom.Intersects.RectangleToRectangle(area, w.getBounds())) w.extinguish();
+    }
+  }
+
+  /** Per-frame checks for things colliders can't see: water under waves and snowballs. */
+  private updateProjectiles(): void {
+    // A wave crossing an empty gap leaves water behind (the Water-then-Snow combo).
+    for (const w of this.waves.getChildren() as WaterWave[]) this.water.leavePuddle(w.frontCol, w.floorRow);
+    // A snowball reaching water or a puddle freezes it into an ice bridge.
+    for (const s of this.snowballs.getChildren() as Snowball[]) {
+      if (this.water.freezeAt(Math.floor(s.x / TILE), Math.floor(s.y / TILE))) {
+        sfx.bounce();
+        s.burst();
+      }
+    }
+  }
+
+  // ---- Creatures and combat ----
 
   private walkers(): Walker[] {
     return this.enemies.getChildren() as Walker[];
@@ -461,13 +665,18 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     const now = this.time.now;
     const hb = this.hero.body;
     const cb = c.body;
-    // Feet at or just inside the creature's top while falling counts as landing on it.
+    const g = this.gravityDir;
+    // Feet at or just inside the creature's top while falling counts as landing on it
+    // ("top" and "falling" are mirrored when upside-down).
+    const prevFeet = (g > 0 ? hb.bottom : hb.top) - hb.deltaY();
+    const creatureTop = g > 0 ? cb.top : cb.bottom;
     const landingOnTop =
-      hb.velocity.y > 0 && hb.bottom - Math.max(0, hb.deltaY()) <= cb.top + HERO.stompTolerance;
+      hb.velocity.y * g > 0 && (g > 0 ? prevFeet <= creatureTop + HERO.stompTolerance : prevFeet >= creatureTop - HERO.stompTolerance);
     const effect = touchEffect(c.kind, {
       friendsHostile: this.rules.friendsHostile,
       landingOnTop,
       stunned: c instanceof Mushroom && c.isStunned(now),
+      frozen: c instanceof Walker && c.isFrozen(now),
     });
     switch (effect) {
       case 'hurtHero':
@@ -487,46 +696,94 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     }
   }
 
-  private weaponHit(c: Creature, damage: number, fromX: number): HitEffect {
-    const effect = weaponHitEffect(c.kind, damage, this.rules.friendsHostile);
+  /** Applies one hit to a creature: damage, and whatever its element does. */
+  private weaponHit(c: Creature, hit: Hit): HitEffect {
     const now = this.time.now;
-    if (effect.kind === 'damage' && c instanceof Walker) {
-      const defeated = c.takeHit(effect.amount, fromX, now);
-      sfx.hit();
-      if (defeated && c instanceof EmberBeetle) this.guardianDefeated(c, { x: c.x, y: c.body.bottom });
-    } else if (effect.kind === 'stun' && c instanceof Mushroom) {
-      c.stun(now);
-      sfx.hit();
+    const frozen = c instanceof Walker && c.isFrozen(now);
+    const effect = weaponHitEffect(c.kind, hit.damage, {
+      friendsHostile: this.rules.friendsHostile,
+      frozen,
+      fire: hit.element === 'fire',
+    });
+    if (c instanceof Mushroom) {
+      if (effect.kind === 'stun') {
+        c.stun(now);
+        sfx.hit();
+      }
+      return effect;
+    }
+    if (effect.kind !== 'damage' && effect.kind !== 'shatter') return effect;
+    if (effect.kind === 'shatter') {
+      // Snow then Fire: the ice shatters for double damage.
+      c.thaw();
+      puff(this, c.x, c.body.center.y, 0xe1f5fe, 10);
+    }
+    const defeated = effect.amount > 0 && c.takeHit(effect.amount, hit.fromX, now);
+    if (effect.amount > 0) sfx.hit();
+    if (defeated) {
+      if (c instanceof Guardian) this.guardianDefeated(c, { x: c.x, y: c.body.bottom });
+      return effect;
+    }
+    const away = Math.sign(c.x - hit.fromX) || 1;
+    if (hit.element === 'water') c.push(away * WATER.pushSpeed, 0, WATER.pushMs, now);
+    if (hit.element === 'snow') {
+      if (hit.freezes) c.freeze(now);
+      else c.slow(now);
     }
     return effect;
   }
 
   private arrowHits(arrow: Arrow, c: Creature): void {
     if (!arrow.active || arrow.hitTargets.has(c)) return;
-    const effect = this.weaponHit(c, arrow.damage, arrow.x);
+    const effect = this.weaponHit(c, {
+      damage: arrow.damage,
+      fromX: arrow.x,
+      element: arrow.element,
+      freezes: arrow.element === 'snow',
+    });
     // Friendly creatures don't stop arrows; weapons never affect them.
     if (effect.kind === 'none') return;
     arrow.hitTargets.add(c);
-    if (effect.kind === 'damage' && arrow.piercesLeft > 0) arrow.piercesLeft--;
+    if (effect.kind !== 'stun' && arrow.piercesLeft > 0) arrow.piercesLeft--;
     else arrow.destroy();
   }
 
   private removeFallenCreatures(): void {
     const bottom = this.mapRows * TILE + LEVEL.fallDeathMargin;
     for (const c of this.creatures()) {
-      if (c.y <= bottom) continue;
+      const b = c.body;
+      const drowned = b.enable && this.water.inWater(b.x, b.y, b.width, b.height);
+      if (c.y <= bottom && !drowned) continue;
       // Spec: a guardian that falls into a pit still drops its power, at the pit's edge.
-      if (c instanceof EmberBeetle && !c.isDefeated) this.guardianDefeated(c, c.pitEdge);
+      if (c instanceof Guardian && !c.isDefeated) this.guardianDefeated(c, c.pitEdge);
+      if (drowned) puff(this, c.x, c.y - 6, 0x4fc3f7, 8);
       c.destroy();
     }
   }
 
-  private guardianDefeated(g: EmberBeetle, dropAt: Point): void {
+  private guardianDefeated(g: Guardian, dropAt: Point): void {
     this.guardians = this.guardians.filter((x) => x !== g);
     const element = GUARDIANS[g.guardianKind].element;
     if (this.powers.has(element)) return; // Replaying a level: the power is already yours.
     this.orbs.add(new PowerOrb(this, this.onGroundNear(dropAt), element));
     this.showBanner(`${g.displayName} defeated!\nGrab the ${ELEMENT_INFO[element].label} power!`, 2500);
+  }
+
+  /**
+   * The nearest tile column to `p` that has ground right under it, so a dropped power never floats
+   * over a pit or water: a creature's center can be past a ledge while its feet are still on it.
+   */
+  private onGroundNear(p: Point): Point {
+    const col = Math.floor(p.x / TILE);
+    const rowBelow = Math.min(this.mapRows - 1, Math.max(1, Math.round(p.y / TILE)));
+    for (let d = 0; d <= 8; d++) {
+      for (const c of d === 0 ? [col] : [col - d, col + d]) {
+        if (this.isSolidTile(c, rowBelow) && !this.isSolidTile(c, rowBelow - 1) && !this.water.isWater(c, rowBelow - 1)) {
+          return { x: c * TILE + TILE / 2, y: rowBelow * TILE };
+        }
+      }
+    }
+    return p;
   }
 
   private collectOrb(orb: PowerOrb): void {
@@ -538,24 +795,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     saveGame.update((s) => withPower(s, element));
     this.cameras.main.flash(300, 255, 200, 120);
     sfx.bounce();
-    this.showBanner(`You got ${ELEMENT_INFO[element].label.toUpperCase()}!\n${POWER_HINT[this.heroKind]}`, 4500);
-  }
-
-  /**
-   * The nearest tile column to `p` that has ground right under it, so a dropped power never floats
-   * over a pit: a creature's center can be past a ledge while its feet are still on it.
-   */
-  private onGroundNear(p: Point): Point {
-    const col = Math.floor(p.x / TILE);
-    const rowBelow = Math.round(p.y / TILE);
-    for (let d = 0; d <= 6; d++) {
-      for (const c of d === 0 ? [col] : [col - d, col + d]) {
-        if (this.isSolidTile(c, rowBelow) && !this.isSolidTile(c, rowBelow - 1)) {
-          return { x: c * TILE + TILE / 2, y: rowBelow * TILE };
-        }
-      }
-    }
-    return p;
+    this.showBanner(`You got ${ELEMENT_INFO[element].label.toUpperCase()}!\n${POWER_HINT[element][this.heroKind]}`, 5000);
   }
 
   private nearbyGuardian(): HudState['guardian'] {
@@ -621,6 +861,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
   private respawn(): void {
     const at = this.checkpoints.respawnPoint;
     this.hero.respawnAt(at);
+    this.hero.setGravityDir(this.gravityDir);
     this.cameras.main.centerOn(at.x, at.y);
     this.vitals.grantInvulnerability(this.time.now, RESPAWN.graceMs);
     // Spec: no flip fires in the 2 seconds after a respawn.
@@ -644,7 +885,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
     this.banner = { text, untilMs: this.time.now + durationMs };
   }
 
-  /** Dev-only shortcuts: F flip now, G physics outlines, N next checkpoint, H hurt self, P get Fire. */
+  /** Dev-only shortcuts: F flip now, G physics outlines, N next checkpoint, H hurt self, P get every power. */
   private addDebugKeys(kb: Phaser.Input.Keyboard.KeyboardPlugin): void {
     const world = this.physics.world;
     world.drawDebug = false;
@@ -662,8 +903,9 @@ export class GameScene extends Phaser.Scene implements CombatWorld {
       const next = targets[this.checkpoints.activeIndex + 1];
       // Land a few tiles short of the crown rather than on it.
       this.hero.respawnAt(next === this.level.crown ? { x: next.x - 60, y: next.y } : next);
+      this.hero.setGravityDir(this.gravityDir);
     });
     kb.on('keydown-H', () => this.hurtHero());
-    kb.on('keydown-P', () => this.powers.grant('fire'));
+    kb.on('keydown-P', () => ELEMENTS.forEach((e) => this.powers.grant(e)));
   }
 }

@@ -5,6 +5,10 @@ import Phaser from 'phaser';
 import { COLORS, FRIEND } from '../config';
 import { SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import type { Point } from '../systems/CheckpointTracker';
+import type { GravityDir } from '../systems/flips';
+import { onFloor, orientToGravity } from './gravity';
+
+const BODY_OFFSET_Y = 7;
 
 export class Mushroom extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -13,13 +17,14 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
   private hostile = false;
   private stunnedUntil = 0;
   private nextHopAt = 0;
+  private gravityDir: GravityDir = 1;
 
   constructor(scene: Phaser.Scene, at: Point) {
     super(scene, at.x, at.y, SHEETS.tiles, TILE_FRAMES.mushroom);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setOrigin(0.5, 1);
-    this.body.setSize(12, 11, false).setOffset(3, 7);
+    this.body.setSize(12, 11, false).setOffset(3, BODY_OFFSET_Y);
   }
 
   get isHostile(): boolean {
@@ -35,6 +40,11 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
     this.stunnedUntil = 0;
     this.restoreTint();
     this.nextHopAt = now + 400;
+  }
+
+  setGravityDir(dir: GravityDir): void {
+    this.gravityDir = dir;
+    orientToGravity(this, dir, BODY_OFFSET_Y);
   }
 
   stun(now: number): void {
@@ -54,8 +64,8 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
       this.stunnedUntil = 0;
       this.restoreTint();
     }
-    if (this.hostile && !this.isStunned(time) && this.body.blocked.down && time >= this.nextHopAt) {
-      this.body.setVelocityY(-FRIEND.hostileHopVelocity);
+    if (this.hostile && !this.isStunned(time) && onFloor(this.body, this.gravityDir) && time >= this.nextHopAt) {
+      this.body.setVelocityY(-this.gravityDir * FRIEND.hostileHopVelocity);
       this.nextHopAt = time + FRIEND.hostileHopIntervalMs;
     }
   }

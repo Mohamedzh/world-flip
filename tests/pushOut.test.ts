@@ -56,6 +56,13 @@ describe('findFreeSpot', () => {
     expect(findFreeSpot(hero, T, solid)).toEqual({ x: 2 * T + 3, y: 6 * T - 16 });
   });
 
+  it('upside-down: pushes the hero out to hang under the ceiling, mirroring normal gravity', () => {
+    // A thick ceiling (rows 0-2); the hero is inside its lowest row when it turns solid.
+    const solid = (_c: number, r: number) => r <= 2;
+    const hero = { x: 2 * T + 3, y: 2 * T + 1, width: 12, height: 16 };
+    expect(findFreeSpot(hero, T, solid, 4, -1)).toEqual({ x: 2 * T + 3, y: 3 * T });
+  });
+
   it('returns null when nothing is free in range', () => {
     const solid: SolidAt = () => true;
     expect(findFreeSpot({ x: 0, y: 0, width: 12, height: 16 }, T, solid, 2)).toBeNull();

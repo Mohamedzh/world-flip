@@ -4,13 +4,21 @@ import { ChargeTrigger, Cooldown } from '../src/systems/triggers';
 
 describe('weaponHitEffect', () => {
   it('enemies take damage in every state', () => {
-    expect(weaponHitEffect('enemy', 2, false)).toEqual({ kind: 'damage', amount: 2 });
-    expect(weaponHitEffect('enemy', 1, true)).toEqual({ kind: 'damage', amount: 1 });
+    expect(weaponHitEffect('enemy', 2, { friendsHostile: false })).toEqual({ kind: 'damage', amount: 2 });
+    expect(weaponHitEffect('enemy', 1, { friendsHostile: true })).toEqual({ kind: 'damage', amount: 1 });
   });
 
   it('weapons never hurt friends: no effect when friendly, only a stun when hostile', () => {
-    expect(weaponHitEffect('friend', 2, false)).toEqual({ kind: 'none' });
-    expect(weaponHitEffect('friend', 2, true)).toEqual({ kind: 'stun' });
+    expect(weaponHitEffect('friend', 2, { friendsHostile: false })).toEqual({ kind: 'none' });
+    expect(weaponHitEffect('friend', 2, { friendsHostile: true })).toEqual({ kind: 'stun' });
+  });
+
+  it('Snow then Fire: fire shatters a frozen enemy for double damage', () => {
+    expect(weaponHitEffect('enemy', 3, { friendsHostile: false, frozen: true, fire: true })).toEqual({
+      kind: 'shatter',
+      amount: 6,
+    });
+    expect(weaponHitEffect('enemy', 2, { friendsHostile: false, frozen: true })).toEqual({ kind: 'damage', amount: 2 });
   });
 });
 
@@ -30,6 +38,10 @@ describe('touchEffect', () => {
   it('a friendly mushroom springs the hero when landed on', () => {
     expect(touchEffect('friend', { ...ctx, landingOnTop: true })).toBe('spring');
     expect(touchEffect('friend', ctx)).toBe('none');
+  });
+
+  it('a frozen enemy never hurts: it is a block to stand on', () => {
+    expect(touchEffect('enemy', { ...ctx, frozen: true })).toBe('none');
   });
 
   it('a hostile friend hurts, unless stunned', () => {

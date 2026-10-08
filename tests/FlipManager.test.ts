@@ -92,14 +92,53 @@ describe('FlipManager', () => {
 
 describe('rulesFor', () => {
   it('only the active flip changes the rules', () => {
-    expect(rulesFor('normal', 0.3)).toEqual({ gravityScale: 1, colorsSwapped: false, friendsHostile: false });
-    expect(rulesFor('lowGravity', 0.3)).toEqual({ gravityScale: 0.3, colorsSwapped: false, friendsHostile: false });
-    expect(rulesFor('colorSwap', 0.3)).toEqual({ gravityScale: 1, colorsSwapped: true, friendsHostile: false });
-    expect(rulesFor('friendFoe', 0.3)).toEqual({ gravityScale: 1, colorsSwapped: false, friendsHostile: true });
+    expect(rulesFor('normal', 0.3)).toEqual({ gravityScale: 1, gravityDir: 1, colorsSwapped: false, friendsHostile: false });
+    expect(rulesFor('lowGravity', 0.3)).toEqual({ gravityScale: 0.3, gravityDir: 1, colorsSwapped: false, friendsHostile: false });
+    expect(rulesFor('colorSwap', 0.3)).toEqual({ gravityScale: 1, gravityDir: 1, colorsSwapped: true, friendsHostile: false });
+    expect(rulesFor('friendFoe', 0.3)).toEqual({ gravityScale: 1, gravityDir: 1, colorsSwapped: false, friendsHostile: true });
   });
 
   it('recognizes flip state names', () => {
     expect(isFlipState('colorSwap')).toBe(true);
-    expect(isFlipState('upsideDown')).toBe(false);
+    expect(isFlipState('upsideDown')).toBe(true);
+    expect(isFlipState('sideways')).toBe(false);
+  });
+});
+
+describe('FlipManager random order (level 4)', () => {
+  /** A repeatable sequence of "random" numbers. */
+  function seq(...values: number[]) {
+    let i = 0;
+    return () => values[i++ % values.length];
+  }
+
+  it('picks each flip from the list and never repeats the current state', () => {
+    const order = ['lowGravity', 'colorSwap', 'friendFoe', 'upsideDown'] as const;
+    const fm = new FlipManager(order, timing, 'random', seq(0, 0, 0.99, 0.5, 0, 0.3));
+    let prev = fm.state;
+    for (let i = 0; i < 6; i++) {
+      fm.forceFlip();
+      expect(fm.state).not.toBe(prev);
+      expect(order).toContain(fm.state);
+      prev = fm.state;
+    }
+  });
+
+  it('the warning shows the flip that actually comes next', () => {
+    const fm = new FlipManager(['lowGravity', 'colorSwap', 'upsideDown'], timing, 'random', seq(0.7, 0.1, 0.9));
+    let warned: string | null = null;
+    fm.onWarning((w) => (warned = w.next));
+    for (let i = 0; i < 4; i++) {
+      advance(fm, 47_000);
+      const announced = warned;
+      advance(fm, 3_000);
+      expect(fm.state).toBe(announced);
+    }
+  });
+});
+
+describe('upside-down rules', () => {
+  it('reverses gravity and changes nothing else', () => {
+    expect(rulesFor('upsideDown', 0.3)).toEqual({ gravityScale: 1, gravityDir: -1, colorsSwapped: false, friendsHostile: false });
   });
 });

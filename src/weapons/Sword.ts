@@ -1,5 +1,6 @@
-// The Knight's sword: a short arc in front of the hero, about 1.5 tiles.
-// Charged with Fire it becomes a flaming swing with +1 damage (spec).
+// The Knight's sword: a short arc in front of the hero, about 1.5 tiles. It also knocks back
+// enemy pellets. Charged with a power (spec): Fire = flaming swing (+1 damage), Water = wave slash
+// (pushes enemies), Snow = frost swing (slows enemies), Wind = spin attack (hits both sides).
 import Phaser from 'phaser';
 import { sfx } from '../audio/sfx';
 import { FIRE, SWORD } from '../config';
@@ -9,7 +10,7 @@ import type { Element } from '../systems/powers';
 import { Cooldown } from '../systems/triggers';
 import type { CombatWorld, Weapon } from './Weapon';
 
-/** Arc color for each power's charged swing. Water, snow and wind arrive in milestone 4. */
+/** Arc color for each power's charged swing. */
 const ARC_COLOR: Record<Element | 'none', number> = {
   none: 0xffffff,
   fire: 0xff7043,
@@ -27,7 +28,7 @@ export class Sword implements Weapon {
   ) {}
 
   update(input: AttackInput, now: number): void {
-    if (input.attackPressed && this.cooldown.tryUse(now)) this.swing(SWORD.damage, 'none');
+    if (input.attackPressed && this.cooldown.tryUse(now)) this.swing(null);
   }
 
   ready(now: number): boolean {
@@ -35,20 +36,27 @@ export class Sword implements Weapon {
   }
 
   charge(element: Element, now: number): void {
-    if (!this.cooldown.tryUse(now)) return;
-    this.swing(SWORD.damage + (element === 'fire' ? FIRE.swingBonusDamage : 0), element);
+    if (this.cooldown.tryUse(now)) this.swing(element);
   }
 
   reset(): void {}
 
-  private swing(damage: number, element: Element | 'none'): void {
-    const b = this.hero.body;
-    const dir = this.hero.facing;
-    const x = dir > 0 ? b.right : b.left - SWORD.reach;
-    const area = new Phaser.Geom.Rectangle(x, b.center.y - SWORD.height / 2, SWORD.reach, SWORD.height);
-    this.world.strike(area, damage, this.hero.x);
-    this.showArc(dir, ARC_COLOR[element], element === 'none' ? 3 : 5);
+  private swing(element: Element | null): void {
+    const damage = SWORD.damage + (element === 'fire' ? FIRE.swingBonusDamage : 0);
+    const hit = { damage, fromX: this.hero.x, element };
+    // The wind spin attack hits both sides at once.
+    const sides: (1 | -1)[] = element === 'wind' ? [1, -1] : [this.hero.facing];
+    for (const dir of sides) {
+      this.world.strike(this.area(dir), hit);
+      this.showArc(dir, ARC_COLOR[element ?? 'none'], element ? 5 : 3);
+    }
     sfx.swing();
+  }
+
+  private area(dir: 1 | -1): Phaser.Geom.Rectangle {
+    const b = this.hero.body;
+    const x = dir > 0 ? b.right : b.left - SWORD.reach;
+    return new Phaser.Geom.Rectangle(x, b.center.y - SWORD.height / 2, SWORD.reach, SWORD.height);
   }
 
   private showArc(dir: 1 | -1, color: number, thickness: number): void {

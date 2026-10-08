@@ -1,14 +1,20 @@
 // The hero's movement, powers and weapon slot, shared by both heroes. Only the weapon differs.
+// Movement works with gravity pulling down or up (the upside-down flip).
 import Phaser from 'phaser';
-import { HERO, PHYSICS } from '../config';
+import { onFloor, orientToGravity } from '../actors/gravity';
+import { HERO, PHYSICS, WIND } from '../config';
 import type { Look } from '../gfx/sprites';
 import type { PlayerInput } from '../input/Controls';
 import type { Point } from '../systems/CheckpointTracker';
+import type { GravityDir } from '../systems/flips';
 import { approach } from '../systems/math';
 import { PowerTrigger, type PowerSystem } from '../systems/powers';
 import type { CombatWorld, Weapon } from '../weapons/Weapon';
 
 export type HeroKind = 'knight' | 'ranger';
+
+/** Where the hero's body sits in the 24 x 24 character frame in normal gravity. */
+const BODY_OFFSET_Y = 24 - HERO.height - 1;
 
 export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -26,6 +32,9 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
   private controlLockMs = 0;
   /** Only falling is capped; upward speed (jumps, springs) never is. */
   private maxFallSpeed: number = PHYSICS.maxFallSpeed;
+  /** Wind: glide time left after a double jump (spec: 2 s). */
+  private glideMs = 0;
+  private gravityDir: GravityDir = 1;
   private readonly powerTrigger = new PowerTrigger();
 
   constructor(
@@ -42,12 +51,12 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5, 1);
     this.setDepth(2);
     // The body sits at the bottom middle of the 24 x 24 character frame.
-    this.body.setSize(HERO.width, HERO.height, false).setOffset((24 - HERO.width) / 2, 24 - HERO.height - 1);
+    this.body.setSize(HERO.width, HERO.height, false).setOffset((24 - HERO.width) / 2, BODY_OFFSET_Y);
     this.setCollideWorldBounds(true);
   }
 
   get onGround(): boolean {
-    return this.body.blocked.down || this.body.touching.down;
+    return onFloor(this.body, this.gravityDir);
   }
 
   /** 1 when facing right, -1 when facing left. */
@@ -55,8 +64,22 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     return this.flipX ? -1 : 1;
   }
 
+  /** Velocity toward the floor: positive while falling, whichever way gravity points. */
+  private get fallSpeed(): number {
+    return this.body.velocity.y * this.gravityDir;
+  }
+
+  private setFallSpeed(v: number): void {
+    this.body.setVelocityY(v * this.gravityDir);
+  }
+
+  setGravityDir(dir: GravityDir): void {
+    this.gravityDir = dir;
+    orientToGravity(this, dir, BODY_OFFSET_Y);
+  }
+
   update(input: PlayerInput, deltaMs: number, now: number): void {
-    this.move(input, deltaMs);
+    this.move(input, deltaMs, now);
     this.animate();
 
     // Tap K to cast; hold K and press J to charge the weapon instead (both use the power's cooldown).
@@ -74,12 +97,13 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     this.weapon.update(attack, now);
   }
 
-  private move(input: PlayerInput, deltaMs: number): void {
+  private move(input: PlayerInput, deltaMs: number, now: number): void {
     const dt = deltaMs / 1000;
     const grounded = this.onGround;
 
     this.coyoteMs = grounded ? HERO.coyoteMs : this.coyoteMs - deltaMs;
     this.jumpBufferMs = input.jumpPressed ? HERO.jumpBufferMs : this.jumpBufferMs - deltaMs;
+    if (grounded) this.glideMs = 0;
 
     if (this.controlLockMs > 0) {
       this.controlLockMs -= deltaMs;
@@ -93,20 +117,36 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
 
       // Jump, using coyote time and the jump buffer so near-misses still count.
       if (this.jumpBufferMs > 0 && this.coyoteMs > 0) {
-        this.body.setVelocityY(-HERO.jumpVelocity);
+        this.setFallSpeed(-HERO.jumpVelocity);
         this.jumpBufferMs = 0;
         this.coyoteMs = 0;
         this.rising = true;
+      } else if (input.jumpPressed && !grounded && this.powers.active === 'wind' && this.powers.useActive(now)) {
+        // Wind: a second jump in mid-air (it uses Wind's cooldown), then holding jump glides.
+        this.setFallSpeed(-WIND.doubleJumpVelocity);
+        this.jumpBufferMs = 0;
+        this.rising = true;
+        this.glideMs = WIND.glideMs;
       }
     }
 
     // Short hop: letting go of jump early cuts the rise.
-    if (this.rising && !input.jumpHeld && this.body.velocity.y < 0) {
-      this.body.setVelocityY(this.body.velocity.y * HERO.jumpCutMultiplier);
+    if (this.rising && !input.jumpHeld && this.fallSpeed < 0) {
+      this.setFallSpeed(this.fallSpeed * HERO.jumpCutMultiplier);
       this.rising = false;
     }
-    if (this.body.velocity.y >= 0) this.rising = false;
-    if (this.body.velocity.y > this.maxFallSpeed) this.body.setVelocityY(this.maxFallSpeed);
+    if (this.fallSpeed >= 0) this.rising = false;
+
+    // Glide: falling slowly while jump is held, for a limited time.
+    if (this.glideMs > 0 && input.jumpHeld && this.fallSpeed > WIND.glideFallSpeed) {
+      this.setFallSpeed(WIND.glideFallSpeed);
+      this.glideMs -= deltaMs;
+    }
+    if (this.fallSpeed > this.maxFallSpeed) this.setFallSpeed(this.maxFallSpeed);
+  }
+
+  get isGliding(): boolean {
+    return this.glideMs > 0 && !this.onGround && this.fallSpeed > 0;
   }
 
   /** Walking frames while running on the ground; the second frame mid-air; the first standing still. */
@@ -123,9 +163,9 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     this.maxFallSpeed = speed;
   }
 
-  /** Launches the hero upward at full strength (mushroom spring, bouncing on an enemy). */
+  /** Launches the hero away from the floor at full strength (mushroom spring, bouncing on an enemy). */
   bounce(velocity: number): void {
-    this.body.setVelocityY(-velocity);
+    this.setFallSpeed(-velocity);
     this.rising = false;
     this.coyoteMs = 0;
     this.jumpBufferMs = 0;
@@ -133,7 +173,8 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
 
   /** Pushes the hero away from a hit. `dir` is the direction to be pushed in. */
   knockback(dir: number): void {
-    this.body.setVelocity((dir || 1) * HERO.hurtKnockbackX, -HERO.hurtKnockbackY);
+    this.body.setVelocityX((dir || 1) * HERO.hurtKnockbackX);
+    this.setFallSpeed(-HERO.hurtKnockbackY);
     this.controlLockMs = HERO.knockbackLockMs;
     this.rising = false;
   }
@@ -160,11 +201,14 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
 
   respawnAt(at: Point): void {
     this.body.enable = true;
+    // Respawn points mark the floor; upside-down, the hero then falls up to the ceiling.
+    this.setGravityDir(1);
     this.body.reset(at.x, at.y);
     this.coyoteMs = 0;
     this.jumpBufferMs = 0;
     this.rising = false;
     this.controlLockMs = 0;
+    this.glideMs = 0;
     this.weapon.reset();
     this.powerTrigger.reset();
     this.clearTint();
