@@ -15,6 +15,6 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     createPlaceholderTextures(this);
-    this.scene.start(SCENES.game);
+    this.scene.start(SCENES.select);
   }
 }

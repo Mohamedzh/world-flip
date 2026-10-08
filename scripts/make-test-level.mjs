@@ -19,27 +19,36 @@ function fill(x1, x2, y1, y2, ch) {
   for (let y = y1; y <= y2; y++) for (let x = x1; x <= x2; x++) grid[y][x] = ch;
 }
 
+// Flips in order after the Normal start; the list loops. Edit it in Tiled under Map > Map Properties.
+const FLIP_ORDER = 'lowGravity,colorSwap,friendFoe,normal';
+
 // --- Layout: '#' ground, 'O' orange block, 'B' blue block. Floor surface is row 12. ---
-fill(0, 21, 12, 14, '#'); //   start area
+fill(0, 21, 12, 14, '#'); //   start area, one enemy patrolling
 fill(15, 18, 10, 11, '#'); //  first step up
 //                             pit at 22-24
-fill(25, 39, 12, 14, '#'); //  checkpoint 1 area
+fill(25, 39, 12, 14, '#'); //  checkpoint 1 area with a bounce mushroom
+fill(33, 40, 6, 6, '#'); //    high shortcut: reach it with the mushroom or in low gravity
 fill(42, 43, 10, 10, '#'); //  floating stepping stones over the pit at 40-48
 fill(46, 47, 9, 9, '#');
 fill(49, 55, 12, 14, '#');
-fill(56, 61, 12, 12, 'O'); //  orange bridge over a pit (solid in the Normal state)
-fill(57, 60, 8, 8, 'B'); //    blue blocks are ghosts in the Normal state
+fill(56, 61, 12, 12, 'O'); //  orange bridge over a pit: it vanishes during the color swap...
+fill(56, 61, 10, 10, 'B'); //  ...and this blue bridge above it turns solid instead
 fill(62, 84, 12, 14, '#'); //  checkpoint 2 area
 fill(72, 73, 11, 11, '#'); //  staircase
 fill(74, 75, 10, 11, '#');
 fill(76, 84, 9, 11, '#'); //   high ledge, then a pit at 85-88
 fill(89, 109, 12, 14, '#'); // final stretch to the crown
-fill(95, 95, 9, 11, 'B'); //   a blue "wall" you can walk through
+fill(95, 95, 9, 11, 'B'); //   a blue wall: walk through it normally, jump over it in the color swap
 
 const objects = [
   point('spawn', 3, 11),
-  point('checkpoint', 30, 11),
-  point('checkpoint', 66, 11),
+  point('enemy', 10, 11),
+  point('checkpoint', 27, 11),
+  point('mushroom', 31, 11),
+  point('enemy', 52, 11),
+  point('checkpoint', 64, 11),
+  point('enemy', 69, 11),
+  point('enemy', 100, 11),
   point('crown', 104, 11),
 ].map((obj, i) => ({ id: i + 1, ...obj }));
 
@@ -82,6 +91,7 @@ const map = {
   height: H,
   tilewidth: TILE,
   tileheight: TILE,
+  properties: [{ name: 'flipOrder', type: 'string', value: FLIP_ORDER }],
   tilesets: [
     {
       firstgid: 1,

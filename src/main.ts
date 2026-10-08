@@ -3,6 +3,7 @@ import { DEBUG, PHYSICS, VIEW } from './config';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { HudScene } from './scenes/HudScene';
+import { SelectScene } from './scenes/SelectScene';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -24,7 +25,7 @@ const game = new Phaser.Game({
       debug: DEBUG.enabled,
     },
   },
-  scene: [BootScene, GameScene, HudScene],
+  scene: [BootScene, SelectScene, GameScene, HudScene],
 });
 
 // Lets the browser console inspect the running game during development.

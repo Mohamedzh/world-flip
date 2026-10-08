@@ -2,6 +2,7 @@
 
 export const SCENES = {
   boot: 'Boot',
+  select: 'Select',
   game: 'Game',
   hud: 'Hud',
 } as const;

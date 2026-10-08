@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { LevelDataError, parseLevelObjects, TILESET_NAME, type TiledMap } from '../src/level/LevelData';
+import { LevelDataError, parseLevel, TILESET_NAME, type TiledMap } from '../src/level/LevelData';
 import { TILE } from '../src/config';
 
 const levelsDir = new URL('../public/assets/levels/', import.meta.url);
@@ -15,7 +15,7 @@ describe('level files', () => {
   for (const file of levelFiles) {
     describe(file, () => {
       const map = load(file);
-      const objects = parseLevelObjects(map);
+      const objects = parseLevel(map);
 
       it('uses the shared tile size and tileset', () => {
         expect(map.tilewidth).toBe(TILE);
@@ -42,9 +42,9 @@ describe('level files', () => {
         expect(xs).toEqual([...xs].sort((a, b) => a - b));
       });
 
-      it('spawn, checkpoints and crown all stand on ground', () => {
+      it('spawn, checkpoints, crown and creatures all stand on ground', () => {
         const ground = map.layers.find((l: { name: string }) => l.name === 'ground').data as number[];
-        for (const p of [objects.spawn, ...objects.checkpoints, objects.crown]) {
+        for (const p of [objects.spawn, ...objects.checkpoints, objects.crown, ...objects.enemies, ...objects.mushrooms]) {
           const col = Math.floor(p.x / TILE);
           const rowBelow = Math.round(p.y / TILE);
           expect(ground[rowBelow * map.width + col], `nothing under (${p.x}, ${p.y})`).toBeGreaterThan(0);
@@ -54,7 +54,7 @@ describe('level files', () => {
   }
 });
 
-describe('parseLevelObjects', () => {
+describe('parseLevel', () => {
   const base = (objects: unknown[]): TiledMap => ({
     width: 2,
     height: 2,
@@ -66,15 +66,20 @@ describe('parseLevelObjects', () => {
       { name: 'blue', type: 'tilelayer' },
       { name: 'objects', type: 'objectgroup', objects: objects as never },
     ],
+    properties: [{ name: 'flipOrder', type: 'string', value: 'lowGravity, colorSwap' }],
   });
+  const minimal = [
+    { id: 1, name: '', type: 'spawn', x: 0, y: 0 },
+    { id: 2, name: '', type: 'crown', x: 9, y: 0 },
+  ];
 
   it('rejects a level without a crown', () => {
     const map = base([{ id: 1, name: 'spawn', type: 'spawn', x: 0, y: 0 }]);
-    expect(() => parseLevelObjects(map)).toThrow(LevelDataError);
+    expect(() => parseLevel(map)).toThrow(LevelDataError);
   });
 
   it('accepts the Tiled 1.9 class field and sorts checkpoints', () => {
-    const lvl = parseLevelObjects(
+    const lvl = parseLevel(
       base([
         { id: 1, name: '', class: 'spawn', x: 0, y: 0 },
         { id: 2, name: '', class: 'checkpoint', x: 50, y: 0 },
@@ -88,6 +93,27 @@ describe('parseLevelObjects', () => {
   it('rejects a level with a missing tile layer', () => {
     const map = base([]);
     map.layers = map.layers.filter((l) => l.name !== 'blue');
-    expect(() => parseLevelObjects(map)).toThrow(/blue/);
+    expect(() => parseLevel(map)).toThrow(/blue/);
+  });
+
+  it('reads the flip order, trimming spaces', () => {
+    expect(parseLevel(base(minimal)).flipOrder).toEqual(['lowGravity', 'colorSwap']);
+  });
+
+  it('rejects a misspelled flip and a missing flip order', () => {
+    const typo = base(minimal);
+    typo.properties = [{ name: 'flipOrder', type: 'string', value: 'lowGravty' }];
+    expect(() => parseLevel(typo)).toThrow(/lowGravty/);
+    const none = base(minimal);
+    none.properties = [];
+    expect(() => parseLevel(none)).toThrow(/flipOrder/);
+  });
+
+  it('reads enemies and mushrooms', () => {
+    const lvl = parseLevel(
+      base([...minimal, { id: 3, name: '', type: 'enemy', x: 5, y: 0 }, { id: 4, name: '', type: 'mushroom', x: 6, y: 0 }]),
+    );
+    expect(lvl.enemies).toEqual([{ x: 5, y: 0 }]);
+    expect(lvl.mushrooms).toEqual([{ x: 6, y: 0 }]);
   });
 });

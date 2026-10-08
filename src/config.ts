@@ -38,6 +38,66 @@ export const HERO = {
   /** Blinking invulnerability after taking a hit. */
   invulnerableMs: 1500,
   blinkIntervalMs: 100,
+  /** Push-back when hurt; steering is locked for a moment so the push is felt. */
+  hurtKnockbackX: 150,
+  hurtKnockbackY: 170,
+  knockbackLockMs: 220,
+  /** How far (px) the hero's feet may sink into a creature and still count as landing on top of it. */
+  stompTolerance: 6,
+} as const;
+
+export const FLIPS = {
+  /** The world flips every 50 s, with a 3 s warning first (spec). */
+  intervalMs: 50_000,
+  warningMs: 3_000,
+  /** Low gravity is 30% of normal: jumps go about 3x higher. */
+  lowGravityScale: 0.3,
+  lowGravityMaxFallSpeed: 200,
+  /** How long the flip's name and tip stay on screen. */
+  bannerMs: 2_800,
+} as const;
+
+export const SWORD = {
+  damage: 2,
+  cooldownMs: 350,
+  /** About 1.5 tiles in front of the hero. */
+  reach: TILE * 1.5,
+  height: 26,
+  /** How long the swing's arc stays visible. */
+  showMs: 120,
+} as const;
+
+export const BOW = {
+  damage: 1,
+  cooldownMs: 500,
+  /** Hold attack this long for a charged shot. */
+  chargeMs: 800,
+  chargedDamage: 2,
+  /** A charged arrow passes through this many enemies before stopping. */
+  chargedPierce: 1,
+  speed: 320,
+  /** Arrows fly straight for about 12 tiles, then gravity starts pulling them down. */
+  straightRange: TILE * 12,
+  maxLifetimeMs: 4_000,
+} as const;
+
+export const ENEMY = {
+  /** Health points. A sword hit (2) defeats a basic enemy, an arrow (1) takes two. */
+  walkerHealth: 2,
+  walkerSpeed: 35,
+  hitKnockback: 90,
+  hitFlashMs: 90,
+  /** Bounce when landing on a harmless enemy during the friend/foe swap. */
+  calmBounceVelocity: 260,
+} as const;
+
+export const FRIEND = {
+  /** A friendly mushroom launches the hero about 8 tiles up. */
+  mushroomBounceVelocity: 520,
+  hostileHopVelocity: 200,
+  hostileHopIntervalMs: 1_100,
+  /** Hostile friends can only be stunned, never defeated (spec). */
+  stunMs: 3_000,
 } as const;
 
 export const LIVES = {
@@ -68,6 +128,12 @@ export const COLORS = {
   sky: 0x8fd3ff,
   knight: 0x9aa3ad,
   ranger: 0x4caf50,
+  enemy: 0xe04848,
+  enemyCalm: 0xc58bd6,
+  friend: 0xffd23f,
+  friendHostile: 0xff8a3d,
+  stunned: 0x9a9a9a,
+  arrow: 0x7a5230,
   checkpointOff: 0x8a8a8a,
   checkpointOn: 0x7be05a,
   crown: 0xffd23f,
@@ -78,6 +144,6 @@ export const COLORS = {
 } as const;
 
 export const DEBUG = {
-  /** Debug keys (G = physics outlines, N = next checkpoint, H = hurt self) work only in `npm run dev`. */
+  /** Debug keys (F = flip now, G = physics outlines, N = next checkpoint, H = hurt self) work only in `npm run dev`. */
   enabled: import.meta.env.DEV,
 } as const;
