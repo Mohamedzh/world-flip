@@ -3,8 +3,9 @@
 A side-scrolling browser platformer where the world's rules flip every 10 seconds.
 The full design is in the game design spec; this repo builds it milestone by milestone.
 
-**Status:** milestone 4. Worlds 1-4 (Meadow, Lake, Mountain, Sky) are playable from the world map,
-with all four powers, their combos, upside-down gravity and random flip order. The Crown Castle boss comes in milestone 5.
+**Status:** milestone 5, the whole game. Main menu, five worlds on the world map (Meadow, Lake, Mountain, Sky, and
+Crown Castle with the Shifting King), all four powers and their combos, music and sound, and an ending screen.
+Made by Mohamed Samir and Mariam Mohamed Samir.
 
 ## Play it locally
 
@@ -30,6 +31,7 @@ test level with every flip, creature and power puzzle close together (press P th
 | Switch power | L, or 1-4 (fire, water, snow, wind) |
 | Double jump and glide | Jump again in mid-air while Wind is the active power; hold jump to glide |
 | Pause | Esc (then Q to go back to the map) |
+| Sound and music on/off | M |
 | World map, hero select | Arrow keys, Enter; Esc on hero select goes back to the map |
 
 Debug keys, only in `npm run dev`:
@@ -41,7 +43,7 @@ Debug keys, only in `npm run dev`:
 | N | Jump to the next checkpoint (then near the crown) |
 | H | Hurt yourself by one heart |
 | P | Get every power |
-| U (world map) | Unlock every world |
+| U (world map) | Unlock every world and get every power |
 | T (world map) | Play the test level |
 
 To start over, clear the save in the browser console: `localStorage.removeItem('world-flip-save-v1')`.
@@ -91,6 +93,16 @@ From World 3, some enemies throw slow pellets; the Knight's swing knocks them ba
 - **Stars:** 1 for reaching the crown, 2 under the level's par time, 3 under par with no hearts lost.
 - **Saving:** powers, best stars and times, unlocked levels and the chosen hero are kept in the browser's localStorage.
 
+## The final boss
+
+Crown Castle opens on the world map once Sky is finished and all four powers are earned; its door shows four slots that
+fill as powers are earned, and opens only with all four. The Shifting King wears a shield of four pieces, and each breaks
+only with its own element (any fire, water, snow or wind attack, cast or weapon-powered). Every flip regrows the whole
+shield, so all four must break within one flip window; the castle flips every 20 s instead of 10 to make that fair.
+With the shield down, weapons hurt him: 10 Knight hits or 20 arrows. His attack changes with the flip: a hop normally,
+a ground slam with shockwaves in low gravity (jump them; the Knight can't deflect these), a ceiling dive upside-down, and
+two summoned mushrooms in the friend/foe swap. Beat him and the crown floats down; take it for the ending and your total stars.
+
 ## How it's organized
 
 - `src/config.ts`: **every tuning number** (gravity, speeds, jump, hearts, lives, timings, damage, cooldowns). Tweak the game here.
@@ -99,9 +111,12 @@ From World 3, some enemies throw slow pellets; the Knight's swing knocks them ba
 - `src/level/`: reads and checks Tiled level files; `levels.ts` lists the levels in play order.
 - `src/hero/`: hero movement (shared) and the Knight and Ranger, which differ only in weapon.
 - `src/weapons/`: Sword, Bow, and the projectiles (arrows, fireballs, water waves, snowballs, pellets).
-- `src/actors/`: enemies (Walker, Thrower), the four guardians, the bounce Mushroom friend, fire walls and power orbs.
+- `src/actors/`: enemies (Walker, Thrower), the four guardians, the Shifting King and his door, the bounce Mushroom friend,
+  fire walls and power orbs.
 - `src/world/`: color blocks, burnable crates, water and ice, seed pods.
-- `src/scenes/`: Boot (loading), Map (world map), Select (hero select), Game (the level), Hud (top bar, messages, results).
+- `src/scenes/`: Boot (loading), Menu (main menu, controls, about), Map (world map), Select (hero select), Game (the level),
+  Hud (top bar, messages, results), Ending.
+- `src/audio/`: synthesized sound effects (`sfx.ts`) and a small music sequencer with one tune per world (`music.ts`).
 - `src/gfx/`: Kenney sprite sheet frames and animations, plus a few textures drawn in code.
 - `public/assets/levels/*.tmj`: levels, editable in the [Tiled](https://www.mapeditor.org/) map editor.
 
@@ -114,10 +129,12 @@ They can then be opened in Tiled. Each level needs:
   solid and blue blocks are ghosts in the Normal state. An optional `decor` layer holds plants.
 - An `objects` layer with point objects whose **Class** is `spawn` (exactly one), `checkpoint` (2-3), `crown` (exactly one),
   `enemy`, `thrower`, `mushroom`, `seedPod` (optional int property `height`, default 3), `fireWall` (reaches up to the ceiling),
-  or a guardian: `emberBeetle`, `tideFrog`, `frostOwl`, `stormHawk`. Place each point on the floor where the thing should stand.
+  a guardian (`emberBeetle`, `tideFrog`, `frostOwl`, `stormHawk`), or for the castle `shiftingKing` and `bossDoor`
+  (in the castle the crown stays hidden until the King is beaten). Place each point on the floor where the thing should stand.
 - Map properties (Map > Map Properties): `name`, `theme` (`meadow`, `lake`, `mountain` or `sky`), `parTimeSec`,
   `flipOrder` (comma separated, from `lowGravity`, `colorSwap`, `friendFoe`, `upsideDown`, `normal`), and optionally
-  `flipMode` (`fixed` or `random`), `enemyHealth` and `enemySpeed` for tougher worlds.
+  `flipMode` (`fixed` or `random`), `flipIntervalSec` (seconds between flips, default 10), and `enemyHealth` and
+  `enemySpeed` for tougher worlds. Themes also include `castle`.
 - A level that has `upsideDown` in its flips needs a ceiling wherever the hero can be.
 
 If you edit a level by hand in Tiled, delete its script in `scripts/levels/` so `npm run gen:levels` can't overwrite it.
@@ -129,4 +146,4 @@ Art: [Pixel Platformer](https://kenney.nl/assets/pixel-platformer) by Kenney (ke
 The Knight and Ranger sprites (`public/assets/heroes/`) were made from character art supplied for this project; their walk,
 jump, fall and attack frames are built from that art.
 
-Sound: every sound effect is synthesized in the browser (`src/audio/sfx.ts`); there are no sound files.
+Sound and music: synthesized in the browser (`src/audio/`); there are no sound files.

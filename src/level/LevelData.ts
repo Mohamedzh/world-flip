@@ -48,7 +48,7 @@ export const PAR_PROPERTY = 'parTimeSec';
 export const NAME_PROPERTY = 'name';
 
 /** Each world's look (background and ground). */
-export const THEMES = ['meadow', 'lake', 'mountain', 'sky'] as const;
+export const THEMES = ['meadow', 'lake', 'mountain', 'sky', 'castle'] as const;
 export type Theme = (typeof THEMES)[number];
 
 /** A seed pod grows this many tiles tall when watered, unless its object says otherwise. */
@@ -110,6 +110,12 @@ export interface LevelData {
   guardians: GuardianSpawn[];
   /** Enemies that stand back and throw slow pellets (the Knight's swing knocks them back). */
   throwers: Point[];
+  /** The final boss, the Shifting King (only in the castle). */
+  boss: Point | null;
+  /** A door that opens only for a hero with all four powers (spec). */
+  bossDoors: Point[];
+  /** Overrides the usual time between flips, e.g. a longer window for the boss fight. */
+  flipIntervalMs: number | null;
   seedPods: SeedPodSpawn[];
   fireWalls: Point[];
   flipOrder: FlipState[];
@@ -171,6 +177,9 @@ export function parseLevel(map: TiledMap): LevelData {
     mushrooms: ofKind('mushroom'),
     guardians,
     throwers: ofKind('thrower'),
+    boss: ofKind('shiftingKing')[0] ?? null,
+    bossDoors: ofKind('bossDoor'),
+    flipIntervalMs: property(map, 'flipIntervalSec') !== undefined ? number('flipIntervalSec', 0) * 1000 || null : null,
     seedPods: objectsOf('seedPod').map((o) => {
       const h = o.properties?.find((p) => p.name === 'height')?.value;
       return { x: o.x, y: o.y, height: typeof h === 'number' && h > 0 ? h : DEFAULT_POD_HEIGHT };

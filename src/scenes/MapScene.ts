@@ -1,12 +1,15 @@
-// The world map: the five worlds along a path. Finished worlds show their best stars; locked
-// worlds show a padlock. The castle opens only with all four powers (spec), shown as four slots.
+// The world map: the five worlds along a path. Played worlds show their best stars; locked worlds
+// show a padlock. The castle opens once Sky is finished and all four powers are earned (spec),
+// shown as four slots under it.
 import Phaser from 'phaser';
+import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import { COLORS, DEBUG, VIEW } from '../config';
 import { POWER_ICONS, TEXTURES } from '../gfx/placeholderTextures';
-import { LEVELS, TEST_LEVEL, findLevel } from '../level/levels';
+import { LEVEL_ORDER, LEVELS, TEST_LEVEL, findLevel, type LevelEntry } from '../level/levels';
 import { saveGame } from '../saveGame';
 import { ELEMENTS } from '../systems/powers';
+import { isLevelUnlocked } from '../systems/progress';
 import { SCENES } from './keys';
 
 const TEXT: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -24,13 +27,17 @@ const SPOTS = [
   { x: 152, y: 128 },
   { x: 240, y: 176 },
   { x: 328, y: 128 },
-  { x: 418, y: 156 },
+  { x: 418, y: 150 },
 ];
 const NODE_COLORS = [0x5ab552, 0x3b82f6, 0xcfd8dc, 0x90caf9, 0x9575cd];
 
 export interface MapSceneData {
   /** The world to highlight, e.g. the one just played. */
   focus?: string;
+}
+
+function unlocked(level: LevelEntry): boolean {
+  return isLevelUnlocked(saveGame.current, LEVEL_ORDER, level.id, level.needsAllPowers);
 }
 
 export class MapScene extends Phaser.Scene {
@@ -51,6 +58,7 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
+    music.play('menu');
     const save = saveGame.current;
     this.cameras.main.setBackgroundColor(COLORS.sky);
     this.add.text(VIEW.width / 2, 20, 'WORLD FLIP', { ...TEXT, fontSize: '20px', strokeThickness: 4 }).setOrigin(0.5);
@@ -63,42 +71,33 @@ export class MapScene extends Phaser.Scene {
     for (const s of SPOTS.slice(1)) path.lineTo(s.x, s.y);
     path.strokePath();
 
-    this.cursor = this.add.rectangle(0, 0, 44, 44).setStrokeStyle(3, COLORS.crown);
+    this.cursor = this.add.rectangle(0, 0, 46, 46).setStrokeStyle(3, COLORS.crown);
     this.tweens.add({ targets: this.cursor, scale: 1.1, yoyo: true, repeat: -1, duration: 500 });
 
     LEVELS.forEach((level, i) => {
       const { x, y } = SPOTS[i];
-      const unlocked = save.unlocked.includes(level.id);
-      this.add.circle(x, y, 18, unlocked ? NODE_COLORS[i] : 0x78909c).setStrokeStyle(2, 0x10141c);
-      if (unlocked) this.add.text(x, y, String(level.world), { ...TEXT, fontSize: '14px' }).setOrigin(0.5);
-      else this.add.image(x, y, TEXTURES.lock).setScale(1.5);
-      this.add.text(x, y + 28, level.name, TEXT).setOrigin(0.5);
+      const open = unlocked(level);
+      if (level.needsAllPowers) this.drawCastle(x, y, open);
+      else {
+        this.add.circle(x, y, 18, open ? NODE_COLORS[i] : 0x78909c).setStrokeStyle(2, 0x10141c);
+        if (open) this.add.text(x, y, String(level.world), { ...TEXT, fontSize: '14px' }).setOrigin(0.5);
+        else this.add.image(x, y, TEXTURES.lock).setScale(1.5);
+      }
+      this.add.text(x, y + (level.needsAllPowers ? 48 : 28), level.name, TEXT).setOrigin(0.5);
       const best = save.levels[level.id]?.bestStars ?? 0;
-      if (unlocked) {
+      if (open) {
         for (let s = 0; s < 3; s++) {
-          this.add.image(x - 14 + s * 14, y - 28, s < best ? TEXTURES.starFull : TEXTURES.starEmpty);
+          this.add.image(x - 14 + s * 14, y - (level.needsAllPowers ? 42 : 28), s < best ? TEXTURES.starFull : TEXTURES.starEmpty);
         }
       }
     });
 
-    // The castle: four power slots that fill as powers are earned (spec), locked for now.
-    const castle = SPOTS[4];
-    this.add.rectangle(castle.x, castle.y, 40, 34, 0x9575cd).setStrokeStyle(2, 0x10141c);
-    this.add.triangle(castle.x, castle.y - 26, 0, 14, 20, 0, 40, 14, 0x7e57c2).setStrokeStyle(2, 0x10141c);
-    this.add.image(castle.x, castle.y + 2, TEXTURES.lock).setScale(1.3);
-    ELEMENTS.forEach((e, i) => {
-      const sx = castle.x - 21 + i * 14;
-      this.add.rectangle(sx, castle.y + 32, 12, 12, 0x10141c, 0.6).setStrokeStyle(1, 0xffffff);
-      if (save.powers.includes(e)) this.add.image(sx, castle.y + 32, POWER_ICONS[e]);
-    });
-    this.add.text(castle.x, castle.y + 48, 'Crown Castle', TEXT).setOrigin(0.5);
-
     this.info = this.add.text(VIEW.width / 2, VIEW.height - 34, '', TEXT).setOrigin(0.5);
-    this.add.text(VIEW.width / 2, VIEW.height - 14, 'Arrows: choose a world    Enter: play', TEXT).setOrigin(0.5);
+    this.add.text(VIEW.width / 2, VIEW.height - 14, 'Arrows: choose a world    Enter: play    Esc: menu', TEXT).setOrigin(0.5);
 
-    // Start on the world just played, or the furthest one unlocked.
+    // Start on the world just played, or the furthest one open.
     const focus = LEVELS.findIndex((l) => l.id === data.focus);
-    const furthest = LEVELS.reduce((best, l, i) => (save.unlocked.includes(l.id) ? i : best), 0);
+    const furthest = LEVELS.reduce((best, l, i) => (unlocked(l) ? i : best), 0);
     this.select(focus >= 0 ? focus : furthest);
 
     const kb = this.input.keyboard!;
@@ -110,34 +109,53 @@ export class MapScene extends Phaser.Scene {
     for (const key of ['LEFT', 'A', 'UP', 'W']) kb.on(`keydown-${key}`, () => move(-1));
     for (const key of ['RIGHT', 'D', 'DOWN', 'S']) kb.on(`keydown-${key}`, () => move(1));
     for (const key of ['ENTER', 'SPACE', 'J']) kb.on(`keydown-${key}`, () => this.play());
+    kb.on('keydown-ESC', () => this.scene.start(SCENES.menu));
     if (DEBUG.enabled) {
-      // U unlocks every world; T plays the test level.
+      // U unlocks every world (and gives every power, for the castle); T plays the test level.
       kb.on('keydown-U', () => {
-        saveGame.update((s) => ({ ...s, unlocked: LEVELS.map((l) => l.id) }));
+        saveGame.update((s) => ({ ...s, unlocked: LEVELS.map((l) => l.id), powers: [...ELEMENTS] }));
         this.scene.restart({ focus: LEVELS[this.selected].id });
       });
       kb.on('keydown-T', () => this.scene.start(SCENES.select, { levelId: TEST_LEVEL.id }));
     }
   }
 
-  /** Moves the cursor; the castle (index 4) can be looked at but not played yet. */
+  /** The castle, with the four power slots under it that fill as powers are earned (spec). */
+  private drawCastle(x: number, y: number, open: boolean): void {
+    const save = saveGame.current;
+    this.add.rectangle(x, y, 40, 34, open ? 0x9575cd : 0x78909c).setStrokeStyle(2, 0x10141c);
+    this.add.triangle(x, y - 26, 0, 14, 20, 0, 40, 14, open ? 0x7e57c2 : 0x607d8b).setStrokeStyle(2, 0x10141c);
+    if (open) this.add.image(x, y + 2, TEXTURES.crown).setScale(1.2);
+    else this.add.image(x, y + 2, TEXTURES.lock).setScale(1.3);
+    ELEMENTS.forEach((e, i) => {
+      const sx = x - 21 + i * 14;
+      this.add.rectangle(sx, y + 30, 12, 12, 0x10141c, 0.7).setStrokeStyle(1, 0xffffff);
+      if (save.powers.includes(e)) this.add.image(sx, y + 30, POWER_ICONS[e]);
+    });
+  }
+
   private select(index: number): void {
-    this.selected = Phaser.Math.Clamp(index, 0, SPOTS.length - 1);
+    this.selected = Phaser.Math.Clamp(index, 0, LEVELS.length - 1);
     const spot = SPOTS[this.selected];
     this.cursor.setPosition(spot.x, spot.y);
     const level = LEVELS[this.selected];
-    if (!level) {
-      const have = saveGame.current.powers.length;
-      this.info.setText(`The Shifting King waits here. Powers: ${have} of 4`);
+    if (unlocked(level)) {
+      this.info.setText(level.needsAllPowers ? 'The Shifting King is waiting!' : `World ${level.world}: ${level.name}`);
       return;
     }
-    const unlocked = saveGame.current.unlocked.includes(level.id);
-    this.info.setText(unlocked ? `World ${level.world}: ${level.name}` : `Finish World ${level.world - 1} to unlock`);
+    const previous = LEVELS[this.selected - 1];
+    if (level.needsAllPowers) {
+      const have = saveGame.current.powers.length;
+      const finished = saveGame.current.levels[previous.id] !== undefined;
+      this.info.setText(!finished ? `Finish World ${previous.world} to unlock` : `Collect all four powers: you have ${have}`);
+    } else {
+      this.info.setText(`Finish World ${previous.world} to unlock`);
+    }
   }
 
   private play(): void {
     const level = LEVELS[this.selected];
-    if (!level || !saveGame.current.unlocked.includes(level.id)) {
+    if (!unlocked(level)) {
       this.cameras.main.shake(150, 0.004);
       sfx.locked();
       return;

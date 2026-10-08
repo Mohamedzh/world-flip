@@ -15,6 +15,7 @@ export const TEXTURES = {
   flameA: 'flame-a',
   flameB: 'flame-b',
   lock: 'lock',
+  shockwave: 'shockwave',
   starFull: 'star-full',
   starEmpty: 'star-empty',
   pixel: 'pixel',
@@ -169,6 +170,22 @@ const FLAME_B = [
   '..rrrrrrrrrrrrr...',
 ];
 
+// 16 x 12: the Shifting King's ground slam, a crackling wave of purple force.
+const SHOCKWAVE_ROWS = [
+  '..........p.....',
+  '.........pp.....',
+  '........ppl..p..',
+  '.......pplp.pp..',
+  '......pplllppl..',
+  '.....pplwlllpp..',
+  '....ppllwwllpl..',
+  '...ppllwwwwlppp.',
+  '..ppllwwwwwllpp.',
+  '.pplllwwwwwwllpp',
+  'pplllllllllllllp',
+  'pppppppppppppppp',
+];
+
 // 9 x 11: a padlock for locked worlds on the map.
 const LOCK_ROWS = [
   '..ggggg..',
@@ -212,6 +229,7 @@ export function createPlaceholderTextures(scene: Phaser.Scene): void {
   const flame = { r: 0xd84315, o: 0xff7043, y: 0xffca28, w: 0xfff8e1 };
   pixelTexture(scene, TEXTURES.flameA, FLAME_A, flame);
   pixelTexture(scene, TEXTURES.flameB, FLAME_B, flame);
+  pixelTexture(scene, TEXTURES.shockwave, SHOCKWAVE_ROWS, { p: 0x6a1b9a, l: 0xb388ff, w: 0xf3e5f5 });
   pixelTexture(scene, TEXTURES.lock, LOCK_ROWS, { g: 0x9e9e9e, y: COLORS.crown, k: 0x5d4037, d: shade(COLORS.crown, 0.3) });
   createFlipIcons(scene);
   createPowerIcons(scene);

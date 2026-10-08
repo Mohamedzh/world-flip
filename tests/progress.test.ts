@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newSave, parseSave, recordLevel, SaveStore, starsFor, withPower, type KeyValueStore } from '../src/systems/progress';
+import { isLevelUnlocked, newSave, parseSave, recordLevel, SaveStore, starsFor, withPower, type KeyValueStore } from '../src/systems/progress';
 
 describe('starsFor', () => {
   const par = 180_000;
@@ -83,5 +83,31 @@ describe('SaveStore', () => {
 
   it('works with no storage at all', () => {
     expect(new SaveStore(null, 'key', 'level-1').current.unlocked).toEqual(['level-1']);
+  });
+});
+
+describe('isLevelUnlocked', () => {
+  const order = ['level-1', 'level-2', 'level-5'];
+  it('opens the first level, and each next one once the one before is finished', () => {
+    let s = newSave('level-1');
+    expect(isLevelUnlocked(s, order, 'level-1')).toBe(true);
+    expect(isLevelUnlocked(s, order, 'level-2')).toBe(false);
+    s = recordLevel(s, 'level-1', 1, 100, null);
+    expect(isLevelUnlocked(s, order, 'level-2')).toBe(true);
+  });
+
+  it('a save from before a level existed still opens it (nothing stored about it)', () => {
+    const s = { ...newSave('level-1'), levels: { 'level-1': { bestStars: 3, bestTimeMs: 1 }, 'level-2': { bestStars: 1, bestTimeMs: 1 } } };
+    expect(isLevelUnlocked({ ...s, powers: ['fire', 'water', 'snow', 'wind'] }, order, 'level-5', true)).toBe(true);
+  });
+
+  it('the boss level also needs all four powers', () => {
+    const s = { ...newSave('level-1'), levels: { 'level-2': { bestStars: 1, bestTimeMs: 1 } } };
+    expect(isLevelUnlocked({ ...s, powers: ['fire', 'water', 'snow'] }, order, 'level-5', true)).toBe(false);
+    expect(isLevelUnlocked({ ...s, powers: ['fire', 'water', 'snow', 'wind'] }, order, 'level-5', true)).toBe(true);
+  });
+
+  it('unknown levels are never open', () => {
+    expect(isLevelUnlocked(newSave('level-1'), order, 'nope')).toBe(false);
   });
 });

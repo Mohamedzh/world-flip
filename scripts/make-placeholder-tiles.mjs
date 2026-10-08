@@ -19,9 +19,10 @@ const C = {
   orangeDark: hex(0xb85f0e),
   blue: hex(0x3b82f6),
   blueDark: hex(0x1e4fa8),
-  ice: hex(0xb3e5fc),
-  iceLight: hex(0xf1fbff),
-  iceDark: hex(0x4fa3d1),
+  ice: hex(0xeef8ff),
+  iceLight: hex(0xffffff),
+  iceDark: hex(0x7fb6d9),
+  iceTint: hex(0xcfeafa),
 };
 
 // Each painter returns the RGBA color for pixel (x, y) inside one tile.
@@ -31,8 +32,9 @@ const painters = {
   // Orange blocks carry diagonal stripes, blue blocks carry dots, so they differ without color.
   orange: (x, y) => (border(x, y) || (x + y) % 6 < 2 ? C.orangeDark : C.orange),
   blue: (x, y) => (border(x, y) || (x % 6 === 3 && y % 6 === 3) ? C.blueDark : C.blue),
-  // Ice bridges (Snow): pale blue with white glints.
-  ice: (x, y) => (border(x, y) ? C.iceDark : (x - y + 18) % 9 === 0 && x > 2 && x < 15 ? C.iceLight : C.ice),
+  // Ice bridges (Snow): nearly white, with a blue edge and a few pale streaks, so they stand out from water.
+  ice: (x, y) =>
+    border(x, y) ? C.iceDark : (x - y + 18) % 9 === 0 && x > 2 && x < 15 ? C.iceLight : (x + 2 * y) % 13 === 0 ? C.iceTint : C.ice,
 };
 function border(x, y) {
   return x === 0 || y === 0 || x === TILE - 1 || y === TILE - 1;

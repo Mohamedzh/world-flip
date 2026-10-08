@@ -5,13 +5,28 @@
 let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
 let master: GainNode | null = null;
+let muted = false;
+
+/** The shared audio output (also used by the music), or null if the browser has no audio. */
+export function audioOut(): { ctx: AudioContext; master: GainNode } | null {
+  const a = audio();
+  return a && master ? { ctx: a, master } : null;
+}
+
+/** M key: turns all sound and music off or on. Returns whether it is now muted. */
+export function toggleMute(): boolean {
+  muted = !muted;
+  const a = audio();
+  if (a && master) master.gain.setTargetAtTime(muted ? 0 : 0.8, a.currentTime, 0.02);
+  return muted;
+}
 
 function audio(): AudioContext | null {
   try {
     if (!ctx) {
       ctx = new AudioContext();
       master = ctx.createGain();
-      master.gain.value = 0.8;
+      master.gain.value = muted ? 0 : 0.8;
       master.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') void ctx.resume();

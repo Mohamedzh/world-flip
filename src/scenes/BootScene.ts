@@ -1,4 +1,4 @@
-// Loads the art and every level, prepares textures and animations, then shows the world map.
+// Loads the art and every level, prepares textures and animations, then shows the main menu.
 import Phaser from 'phaser';
 import { createPlaceholderTextures } from '../gfx/placeholderTextures';
 import { createAnimations, loadSheets } from '../gfx/sprites';
@@ -21,6 +21,6 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     createPlaceholderTextures(this);
     createAnimations(this);
-    this.scene.start(SCENES.map);
+    this.scene.start(SCENES.menu);
   }
 }

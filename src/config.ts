@@ -203,6 +203,29 @@ export const GUARDIAN = {
   showBarRange: TILE * 16,
 } as const;
 
+/** The Shifting King, the final boss (spec). */
+export const BOSS = {
+  /** Once the shield is down: 10 Knight hits (2 damage) or 20 arrows (1 damage) (spec). */
+  health: 20,
+  walkSpeed: 45,
+  /** An attack every few seconds, always after a warning shake. */
+  attackEveryMs: 2_600,
+  telegraphMs: 600,
+  /** Normal / color swap: a hop toward the hero. */
+  hopVelocityX: 140,
+  hopVelocityY: 300,
+  /** Low gravity: a big jump, then a slam that sends shockwaves along the floor both ways. */
+  slamJumpVelocity: 380,
+  shockwaveSpeed: 170,
+  shockwaveLifetimeMs: 2_200,
+  /** Upside-down: he hangs from the ceiling and dives at the hero. */
+  diveVelocity: 420,
+  /** Friend/foe swap: he summons two hostile mushrooms (they vanish at the next flip). */
+  minions: 2,
+  /** Contact and shockwaves cost this many hearts. */
+  touchDamage: 1,
+} as const;
+
 export const SAVE = {
   storageKey: 'world-flip-save-v1',
 } as const;

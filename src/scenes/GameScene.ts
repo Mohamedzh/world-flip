@@ -1,15 +1,18 @@
 // One playable level: tiles, hero, creatures, guardian, checkpoints, pits, water, the crown,
 // world flips, combat, the four powers and their combos, stars and saving.
 import Phaser from 'phaser';
-import type { ActorWorld } from '../actors/ActorWorld';
+import { BossDoor } from '../actors/BossDoor';
+import { ShiftingKing, type BossWorld } from '../actors/ShiftingKing';
 import { FireWall } from '../actors/FireWall';
 import { createGuardian, Guardian } from '../actors/guardians';
 import { Mushroom } from '../actors/Mushroom';
 import { PowerOrb } from '../actors/PowerOrb';
 import { Thrower } from '../actors/Thrower';
 import { BASIC_WALKER, Walker } from '../actors/Walker';
+import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
 import {
+  BOSS,
   CAMERA,
   COLORS,
   DEBUG,
@@ -54,7 +57,7 @@ import { recordLevel, starsFor, withPower } from '../systems/progress';
 import { findFreeSpot, overlapsSolid } from '../systems/pushOut';
 import { Arrow } from '../weapons/Arrow';
 import { Fireball } from '../weapons/Fireball';
-import { Pellet, puff, Snowball, WaterWave } from '../weapons/projectiles';
+import { Pellet, puff, Shockwave, Snowball, WaterWave } from '../weapons/projectiles';
 import type { CombatWorld, Hit } from '../weapons/Weapon';
 import { Burnables } from '../world/Burnables';
 import { ColorBlocks } from '../world/ColorBlocks';
@@ -93,12 +96,12 @@ export interface HudState {
   flip: { state: FlipState; next: FlipState; msUntilFlip: number; warning: boolean };
   /** Owned powers, the active one, and how recharged it is (1 = ready). */
   powers: { owned: Element[]; active: Element | null; readiness: number };
-  /** The guardian's health bar, while the hero is near it. */
-  guardian: { name: string; health: number } | null;
+  /** The guardian's (or the boss's) health bar, while the hero is near it; the boss also shows his shield. */
+  guardian: { name: string; health: number; shield?: Element[] } | null;
   result: LevelResult | null;
 }
 
-export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
+export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
   private heroKind: HeroKind = 'knight';
   private levelId = FIRST_LEVEL;
   private hero!: Hero;
@@ -122,6 +125,12 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
   private snowballs!: Phaser.Physics.Arcade.Group;
   private pellets!: Phaser.Physics.Arcade.Group;
   private orbs!: Phaser.Physics.Arcade.Group;
+  private shockwaves!: Phaser.Physics.Arcade.Group;
+  private boss: ShiftingKing | null = null;
+  /** Mushrooms the boss summoned in the friend/foe swap; they vanish at the next flip. */
+  private minions: Mushroom[] = [];
+  private bossDoors: BossDoor[] = [];
+  private crown!: Phaser.Physics.Arcade.Image;
   private fireWalls!: Phaser.Physics.Arcade.StaticGroup;
   private guardians: Guardian[] = [];
   private checkpointFlags: Phaser.Physics.Arcade.Sprite[] = [];
@@ -180,6 +189,8 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     this.result = null;
     this.banner = null;
     this.guardians = [];
+    this.boss = null;
+    this.minions = [];
     // The physics world survives a scene restart, so undo anything a previous run left behind.
     this.physics.resume();
 
@@ -189,14 +200,16 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     this.checkpoints = new CheckpointTracker(this.level.spawn, this.level.checkpoints);
     this.hero = createHero(this.heroKind, this, this.level.spawn, this, this.powers);
     this.controls = new Controls(this);
-    for (const key of ['arrows', 'fireballs', 'waves', 'snowballs', 'pellets', 'orbs'] as const) {
+    for (const key of ['arrows', 'fireballs', 'waves', 'snowballs', 'pellets', 'orbs', 'shockwaves'] as const) {
       this[key] = this.memberGroup();
     }
     this.spawnCreatures();
     this.addColliders();
     this.setUpCamera();
 
-    this.flips = new FlipManager(this.level.flipOrder, FLIPS, this.level.flipMode);
+    // The boss level has a longer window between flips, so all four shield pieces can be broken in one.
+    const timing = { intervalMs: this.level.flipIntervalMs ?? FLIPS.intervalMs, warningMs: FLIPS.warningMs };
+    this.flips = new FlipManager(this.level.flipOrder, timing, this.level.flipMode);
     this.flips.onWarning(() => sfx.warningChime());
     this.flips.onChanged(({ to }) => this.onFlip(to));
     this.applyRules('normal');
@@ -204,6 +217,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     this.setUpKeys();
     this.vitals.grantInvulnerability(this.time.now, RESPAWN.graceMs);
     this.showBanner(data.banner ?? this.level.name, 2500);
+    music.play(this.level.theme);
     if (data.banner) sfx.gameOver();
     else sfx.levelStart();
     if (!this.scene.isActive(SCENES.hud)) this.scene.launch(SCENES.hud);
@@ -220,6 +234,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     this.hero.showInvulnerable(this.vitals.isInvulnerable(now), now);
     this.updateProjectiles();
     this.removeFallenCreatures();
+    this.updateDoors();
     const hb = this.hero.body;
     const fellOut = this.gravityDir > 0 && this.hero.y > this.mapRows * TILE + LEVEL.fallDeathMargin;
     if (fellOut || this.water.inWater(hb.x, hb.y, hb.width, hb.height)) this.die();
@@ -242,6 +257,23 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     if (col < 0 || col >= this.mapCols) return true;
     if (row < 0 || row >= this.mapRows) return row < 0;
     return this.isSolidTile(col, row);
+  }
+
+  spawnShockwave(x: number, floorY: number, dir: 1 | -1): void {
+    this.shockwaves.add(new Shockwave(this, x, floorY, dir, this.gravityDir, BOSS.shockwaveSpeed, BOSS.shockwaveLifetimeMs));
+  }
+
+  summonMinions(near: Point, count: number): void {
+    for (let i = 0; i < count; i++) {
+      const side = i % 2 ? 1 : -1;
+      const x = Phaser.Math.Clamp(near.x + side * TILE * (3 + i), TILE * 17, (this.mapCols - 2) * TILE);
+      const m = new Mushroom(this, { x, y: TILE * 12 });
+      m.setGravityDir(this.gravityDir);
+      m.setHostile(true, this.time.now);
+      this.mushrooms.add(m);
+      this.minions.push(m);
+      puff(this, x, TILE * 11, 0xb388ff, 8);
+    }
   }
 
   // ---- CombatWorld: used by the heroes' weapons and powers ----
@@ -336,6 +368,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
       flag.setOrigin(0.5, 1).refreshBody();
       return flag.setTint(COLORS.checkpointOff);
     });
+    this.bossDoors = this.level.bossDoors.map((p) => new BossDoor(this, p, saveGame.current.powers));
     this.fireWalls = this.physics.add.staticGroup();
     for (const p of this.level.fireWalls) this.fireWalls.add(new FireWall(this, p, (x, y) => this.isSolidAt(x, y)));
   }
@@ -374,6 +407,10 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     for (const p of this.level.enemies) this.enemies.add(new Walker(this, p, this, style));
     for (const p of this.level.throwers) this.enemies.add(new Thrower(this, p, this, this.level.enemyHealth));
     for (const p of this.level.mushrooms) this.mushrooms.add(new Mushroom(this, p));
+    if (this.level.boss) {
+      this.boss = new ShiftingKing(this, this.level.boss, this);
+      this.enemies.add(this.boss);
+    }
     for (const g of this.level.guardians) {
       const guardian = createGuardian(g.kind, this, g, this);
       this.guardians.push(guardian);
@@ -482,12 +519,29 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
       pellet.burst();
     });
     this.physics.add.overlap(this.hero, this.orbs, (_h, o) => this.collectOrb(o as PowerOrb));
+    // The castle door blocks a hero who doesn't have all four powers yet.
+    this.physics.add.collider(this.hero, this.bossDoors, () => {
+      if (this.powers.ownedPowers.length < 4) this.showBanner('The door needs all four powers', 1500);
+    });
+    this.physics.add.collider([this.enemies, this.mushrooms], this.bossDoors);
+    // The King's shockwaves run along the floor: jump over them. They stop at walls.
+    this.physics.add.overlap(this.hero, this.shockwaves, (_h, w) => this.hurtHero(BOSS.touchDamage, (w as Shockwave).x));
+    this.physics.add.collider(this.shockwaves, solids, (w) => {
+      const wave = w as Shockwave;
+      if (wave.body.blocked.left || wave.body.blocked.right) wave.destroy();
+    });
 
     this.checkpointFlags.forEach((flag, i) => this.physics.add.overlap(this.hero, flag, () => this.touchCheckpoint(i)));
     const crown = this.physics.add.staticImage(this.level.crown.x, this.level.crown.y, TEXTURES.crown);
     crown.setOrigin(0.5, 1).refreshBody();
+    this.crown = crown;
     this.tweens.add({ targets: crown, y: crown.y - 3, yoyo: true, repeat: -1, duration: 700, ease: 'Sine.inOut' });
     this.physics.add.overlap(this.hero, crown, () => this.reachCrown());
+    // In the castle the crown only appears once the Shifting King is beaten (spec).
+    if (this.boss) {
+      crown.setVisible(false);
+      crown.body!.enable = false;
+    }
   }
 
   private setUpCamera(): void {
@@ -523,7 +577,13 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
   // ---- World flips ----
 
   private onFlip(to: FlipState): void {
+    for (const m of this.minions) {
+      if (m.active) puff(this, m.x, m.y - 6, 0xb388ff, 6);
+      m.destroy();
+    }
+    this.minions = [];
     this.applyRules(to);
+    if (this.boss?.active) this.boss.onFlip(to, this.time.now);
     this.cameras.main.flash(250, 255, 255, 255);
     sfx.flip();
     const info = FLIP_INFO[to];
@@ -593,9 +653,9 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     );
     const now = this.time.now;
     for (const e of this.walkers()) {
-      if (e.body.enable && Phaser.Geom.Intersects.RectangleToRectangle(area, e.getBounds())) {
-        e.push(dir * WIND.gustPushX, -this.gravityDir * WIND.gustPushY, WIND.gustPushMs, now);
-      }
+      if (!e.body.enable || !Phaser.Geom.Intersects.RectangleToRectangle(area, e.getBounds())) continue;
+      if (e instanceof ShiftingKing) this.hitBoss(e, { damage: 0, fromX: hero.x, element: 'wind' });
+      else e.push(dir * WIND.gustPushX, -this.gravityDir * WIND.gustPushY, WIND.gustPushMs, now);
     }
     for (const p of this.pellets.getChildren() as Pellet[]) {
       if (Phaser.Geom.Intersects.RectangleToRectangle(area, p.getBounds())) p.burst();
@@ -708,6 +768,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
 
   /** Applies one hit to a creature: damage, and whatever its element does. */
   private weaponHit(c: Creature, hit: Hit): HitEffect {
+    if (c instanceof ShiftingKing) return this.hitBoss(c, hit);
     const now = this.time.now;
     const frozen = c instanceof Walker && c.isFrozen(now);
     const effect = weaponHitEffect(c.kind, hit.damage, {
@@ -745,6 +806,53 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
       } else c.slow(now);
     }
     return effect;
+  }
+
+  /**
+   * The boss: an element breaks its own shield piece; with the shield down, the hit's damage counts.
+   * Anything else just clanks off the shield.
+   */
+  private hitBoss(boss: ShiftingKing, hit: Hit): HitEffect {
+    const now = this.time.now;
+    if (!boss.shieldDown) {
+      if (hit.element && boss.breakPiece(hit.element)) {
+        sfx.shatter();
+        if (boss.shieldDown) {
+          sfx.powerUp();
+          this.showBanner('The shield is down!\nAttack him now!', 2000);
+        }
+      } else {
+        sfx.hit();
+      }
+      return { kind: 'damage', amount: 0 };
+    }
+    if (hit.damage > 0) {
+      sfx.hit();
+      if (boss.takeHit(hit.damage, hit.fromX, now)) this.bossDefeated(boss);
+    }
+    return { kind: 'damage', amount: hit.damage };
+  }
+
+  private bossDefeated(boss: ShiftingKing): void {
+    sfx.guardianDefeat();
+    this.cameras.main.shake(400, 0.01);
+    for (const m of this.minions) m.destroy();
+    this.minions = [];
+    // The crown floats down where the King fell.
+    const x = Phaser.Math.Clamp(boss.x, TILE * 20, (this.mapCols - 3) * TILE);
+    this.crown.setPosition(x, -20).setVisible(true);
+    this.tweens.add({ targets: this.crown, y: TILE * 12, duration: 1400, ease: 'Bounce.out' });
+    // Made touchable on the game clock rather than when the animation ends, so it always happens.
+    this.time.delayedCall(1450, () => {
+      this.crown.setY(TILE * 12).refreshBody();
+      this.crown.body!.enable = true;
+    });
+    this.showBanner('You beat the Shifting King!\nTake the crown!', 3500);
+  }
+
+  private updateDoors(): void {
+    if (this.powers.ownedPowers.length < 4) return;
+    for (const d of this.bossDoors) if (!d.isOpen && Math.abs(d.x - this.hero.x) < TILE * 4) d.open();
   }
 
   private arrowHits(arrow: Arrow, c: Creature): void {
@@ -814,6 +922,10 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
   }
 
   private nearbyGuardian(): HudState['guardian'] {
+    const b = this.boss;
+    if (b?.active && !b.isDefeated && Math.abs(b.x - this.hero.x) < GUARDIAN.showBarRange * 2) {
+      return { name: b.displayName, health: b.healthFraction, shield: b.shieldPieces };
+    }
     const g = this.guardians.find((x) => x.active && !x.isDefeated);
     if (!g || Math.abs(g.x - this.hero.x) > GUARDIAN.showBarRange) return null;
     return { name: g.displayName, health: g.healthFraction };
@@ -841,6 +953,16 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
       ...recordLevel(s, this.levelId, stars, this.elapsedMs, nextLevelId(this.levelId)),
       hero: this.heroKind,
     }));
+    if (this.boss) {
+      // The end of the game: on to the ending screen with the total of the best stars.
+      this.showBanner('The crown is yours!', 3000);
+      this.time.delayedCall(1800, () => {
+        this.physics.resume();
+        this.scene.stop(SCENES.hud);
+        this.scene.start(SCENES.ending, { hero: this.heroKind });
+      });
+      return;
+    }
     this.result = {
       stars,
       timeMs: this.elapsedMs,

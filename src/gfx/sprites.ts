@@ -42,6 +42,7 @@ export const LOOKS = {
   thrower: look('thrower', [4, 5]),
   tideFrog: look('tide-frog', [13, 14]),
   flyer: look('flyer', [24, 25]),
+  king: look('king', [11, 12]),
 } as const;
 
 /** A hero's frames: standing, a 4-frame walk, jumping, falling, and a 3-frame attack. */
@@ -101,6 +102,7 @@ export const BACKGROUNDS = {
   lake: { sky: 6, hills: 14, low: 22 },
   mountain: { sky: 0, hills: 11, low: 19 },
   sky: { sky: 1, hills: 8, low: 16 },
+  castle: { sky: 4, hills: 12, low: 20 },
 } as const;
 
 export function createAnimations(scene: Phaser.Scene): void {

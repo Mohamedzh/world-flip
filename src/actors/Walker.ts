@@ -28,7 +28,8 @@ export const BASIC_WALKER: WalkerStyle = {
   tint: 0xffffff,
 };
 
-const ICE_TINT = 0x9fdcff;
+/** Frozen enemies look like blocks of white ice. */
+const ICE_TINT = 0xeaf6ff;
 
 export class Walker extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -193,9 +194,12 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
 
   protected restoreTint(): void {
     const now = this.scene.time.now;
-    const tint = this.isFrozen(now)
-      ? ICE_TINT
-      : this.calm
+    // Frozen: a solid icy-white shape, like a block of ice (a tint alone can't lighten the art).
+    if (this.isFrozen(now)) {
+      this.setTintFill(ICE_TINT);
+      return;
+    }
+    const tint = this.calm
         ? COLORS.enemyCalm
         : now < this.slowedUntil
           ? 0xc8ecff

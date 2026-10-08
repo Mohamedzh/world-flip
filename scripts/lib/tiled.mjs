@@ -20,7 +20,7 @@ const GROUND = {
   snow: { top: [101, 102, 103], platform: [80, 81, 82, 83] },
 };
 /** Each world's look; the game uses the same theme name for the background. */
-export const THEMES = { meadow: 'grass', lake: 'grass', mountain: 'snow', sky: 'grass' };
+export const THEMES = { meadow: 'grass', lake: 'grass', mountain: 'snow', sky: 'grass', castle: 'snow' };
 
 const T = {
   // Dirt under the top row: left edge, middle, right edge.

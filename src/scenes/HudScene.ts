@@ -40,6 +40,7 @@ export class HudScene extends Phaser.Scene {
   private guardianName!: Phaser.GameObjects.Text;
   private guardianBarBack!: Phaser.GameObjects.Rectangle;
   private guardianBar!: Phaser.GameObjects.Rectangle;
+  private shieldIcons: Phaser.GameObjects.Image[] = [];
   private shimmer!: Phaser.GameObjects.Rectangle;
   private bannerText!: Phaser.GameObjects.Text;
   private pausedText!: Phaser.GameObjects.Text;
@@ -87,6 +88,8 @@ export class HudScene extends Phaser.Scene {
     this.guardianName = this.add.text(cx, 24, '', TEXT).setOrigin(0.5, 0);
     this.guardianBarBack = this.add.rectangle(cx - 60, 38, 120, 5, 0x10141c, 0.8).setOrigin(0, 0);
     this.guardianBar = this.add.rectangle(cx - 59, 39, 118, 3, COLORS.heart).setOrigin(0, 0);
+    // The boss's shield pieces, beside his bar: a piece's icon goes dim once it's broken.
+    this.shieldIcons = ELEMENTS.map((e, i) => this.add.image(cx + 66 + i * 12, 40, POWER_ICONS[e]).setVisible(false));
 
     const cy = VIEW.height / 2;
     this.bannerText = this.add.text(cx, cy - 40, '', { ...TEXT, fontSize: '14px', align: 'center' }).setOrigin(0.5);
@@ -135,8 +138,12 @@ export class HudScene extends Phaser.Scene {
     this.guardianName.setVisible(visible);
     this.guardianBarBack.setVisible(visible);
     this.guardianBar.setVisible(visible);
+    this.shieldIcons.forEach((icon, i) => {
+      icon.setVisible(!!guardian?.shield);
+      icon.setAlpha(guardian?.shield?.includes(ELEMENTS[i]) ? 1 : 0.2);
+    });
     if (!guardian) return;
-    this.guardianName.setText(guardian.name);
+    this.guardianName.setText(guardian.shield?.length === 0 ? `${guardian.name} - shield down!` : guardian.name);
     this.guardianBar.setSize(Math.max(0, 118 * guardian.health), 3);
   }
 

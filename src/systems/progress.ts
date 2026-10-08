@@ -77,6 +77,18 @@ export function recordLevel(
   return { ...save, levels, unlocked };
 }
 
+/**
+ * Whether a level can be played. Worked out from results rather than a stored list, so a save made
+ * before a level existed still opens it: the first level is always open, each other level opens once
+ * the one before it is finished, and a level that needs all four powers also needs every power.
+ */
+export function isLevelUnlocked(save: SaveData, order: readonly string[], id: string, needsAllPowers = false): boolean {
+  const i = order.indexOf(id);
+  if (i < 0) return false;
+  if (needsAllPowers && save.powers.length < 4) return false;
+  return i === 0 || save.levels[order[i - 1]] !== undefined || save.unlocked.includes(id);
+}
+
 export function withPower(save: SaveData, e: Element): SaveData {
   return save.powers.includes(e) ? save : { ...save, powers: [...save.powers, e] };
 }

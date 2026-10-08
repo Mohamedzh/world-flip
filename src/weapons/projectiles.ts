@@ -139,3 +139,29 @@ export function puff(scene: Phaser.Scene, x: number, y: number, color: number, c
     });
   }
 }
+
+/**
+ * The Shifting King's ground slam: a wave of force running along the floor. Jump over it.
+ * Unlike pellets, the Knight's swing can't knock it back (spec).
+ */
+export class Shockwave extends Phaser.Physics.Arcade.Image {
+  declare body: Phaser.Physics.Arcade.Body;
+
+  private readonly bornAt: number;
+
+  constructor(scene: Phaser.Scene, x: number, floorY: number, dir: 1 | -1, gravityDir: GravityDir, speed: number, private readonly lifetimeMs: number) {
+    super(scene, x, floorY, TEXTURES.shockwave);
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+    this.setOrigin(0.5, gravityDir > 0 ? 1 : 0).setFlipX(dir < 0).setFlipY(gravityDir < 0).setDepth(4);
+    this.bornAt = scene.time.now;
+    this.body.setAllowGravity(false);
+    this.body.setVelocityX(dir * speed);
+  }
+
+  update(time: number): void {
+    const age = time - this.bornAt;
+    this.setAlpha(1 - (age / this.lifetimeMs) * 0.6);
+    if (age > this.lifetimeMs) this.destroy();
+  }
+}

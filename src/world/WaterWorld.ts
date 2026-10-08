@@ -23,7 +23,8 @@ export class WaterWorld {
   ) {
     water.setAlpha(0.85).setDepth(3);
     this.puddles = map.createBlankLayer('puddles', [tilesets.kenney, tilesets.blocks])!.setAlpha(0.8).setDepth(3);
-    this.ice = map.createBlankLayer('ice', [tilesets.kenney, tilesets.blocks])!.setDepth(1);
+    // Ice sits above the water (which is drawn over everything else), so a frozen surface looks frozen.
+    this.ice = map.createBlankLayer('ice', [tilesets.kenney, tilesets.blocks])!.setDepth(3.5);
     this.iceTile = tilesets.blocks.firstgid + ICE_TILE_OFFSET;
     this.puddleTile = tilesets.kenney.firstgid + TILE_FRAMES.waterTop;
   }
