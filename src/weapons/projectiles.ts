@@ -1,5 +1,6 @@
 // Projectiles from the Water and Snow powers and from throwers.
 import Phaser from 'phaser';
+import { sfx } from '../audio/sfx';
 import { SNOW, THROWER, TILE, WATER } from '../config';
 import { TEXTURES } from '../gfx/placeholderTextures';
 import type { GravityDir } from '../systems/flips';
@@ -106,6 +107,7 @@ export class Pellet extends Phaser.Physics.Arcade.Image {
   deflect(): void {
     if (this.deflectedValue) return;
     this.deflectedValue = true;
+    sfx.deflect();
     this.body.setVelocityX(-this.body.velocity.x * THROWER.deflectSpeedFactor);
     this.setTint(0xfff176);
   }

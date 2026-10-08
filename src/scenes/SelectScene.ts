@@ -1,5 +1,6 @@
 // Hero select screen, shown before each level (spec). Remembers the last hero in the save.
 import Phaser from 'phaser';
+import { sfx } from '../audio/sfx';
 import { COLORS, VIEW } from '../config';
 import { TEXTURES } from '../gfx/placeholderTextures';
 import type { HeroKind } from '../hero/Hero';
@@ -44,7 +45,7 @@ export class SelectScene extends Phaser.Scene {
       const info = HERO_INFO[kind];
       const frame = this.add.rectangle(x, y, 140, 140, 0x10141c, 0.35).setStrokeStyle(2, 0xffffff);
       frame.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.pick(kind, true));
-      this.add.sprite(x, y - 30, info.look.sheet, info.look.frames[0]).setScale(3).play(info.look.walkAnim);
+      this.add.sprite(x, y + 2, info.look.sheet, info.look.idle).setOrigin(0.5, 1).setScale(2).play(info.look.walkAnim);
       this.add.text(x, y + 10, info.name, { ...TEXT, fontSize: '13px' }).setOrigin(0.5);
       this.add.text(x, y + 44, info.lines.join('\n'), { ...TEXT, lineSpacing: 4 }).setOrigin(0.5);
       return frame;
@@ -62,7 +63,10 @@ export class SelectScene extends Phaser.Scene {
 
     const kb = this.input.keyboard!;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => kb.removeAllListeners());
-    const toggle = () => this.pick(this.choice === 'knight' ? 'ranger' : 'knight');
+    const toggle = () => {
+      this.pick(this.choice === 'knight' ? 'ranger' : 'knight');
+      sfx.menuMove();
+    };
     for (const key of ['LEFT', 'RIGHT', 'A', 'D']) kb.on(`keydown-${key}`, toggle);
     for (const key of ['ENTER', 'SPACE', 'J']) kb.on(`keydown-${key}`, () => this.start());
     kb.on('keydown-ESC', () => this.scene.start(SCENES.map, { focus: this.levelId }));

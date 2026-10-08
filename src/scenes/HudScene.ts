@@ -1,9 +1,10 @@
 // The top bar (hearts, lives, power, current flip, time), the guardian's health bar,
 // on-screen messages and the results panel, drawn above the level.
 import Phaser from 'phaser';
+import { sfx } from '../audio/sfx';
 import { COLORS, VIEW } from '../config';
 import { FLIP_ICONS, POWER_ICONS, TEXTURES } from '../gfx/placeholderTextures';
-import { LOOKS, SHEETS, TILE_FRAMES } from '../gfx/sprites';
+import { HERO_LOOKS, SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import { FLIP_INFO } from '../systems/flips';
 import { ELEMENTS } from '../systems/powers';
 import { formatTime } from '../systems/math';
@@ -61,7 +62,7 @@ export class HudScene extends Phaser.Scene {
       this.hearts.push(this.add.image(2 + i * HEART_SPACING, 1, SHEETS.tiles, TILE_FRAMES.heartFull).setOrigin(0, 0));
     }
     const afterHearts = 4 + maxHearts * HEART_SPACING;
-    this.livesIcon = this.add.image(afterHearts, 1, LOOKS.knight.sheet, LOOKS.knight.frames[0]).setOrigin(0, 0).setScale(0.75);
+    this.livesIcon = this.add.image(afterHearts + 8, 18, HERO_LOOKS.knight.sheet, HERO_LOOKS.knight.idle).setOrigin(0.5, 1).setScale(0.5);
     this.livesText = this.add.text(afterHearts + 19, 4, '', TEXT);
 
     // Owned powers in a row (keys 1-4). The active one is underlined, with a dark overlay
@@ -102,8 +103,8 @@ export class HudScene extends Phaser.Scene {
   update(time: number): void {
     const s = this.gameScene().hudState;
     this.hearts.forEach((h, i) => h.setFrame(i < s.hearts ? TILE_FRAMES.heartFull : TILE_FRAMES.heartEmpty));
-    const look = LOOKS[s.heroKind];
-    this.livesIcon.setFrame(look.frames[0]);
+    const look = HERO_LOOKS[s.heroKind];
+    this.livesIcon.setTexture(look.sheet, look.idle);
     this.livesText.setText(`x${s.lives}`);
     this.timeText.setText(formatTime(s.elapsedMs));
     this.bannerText.setText(s.banner ?? '');
@@ -184,6 +185,7 @@ export class HudScene extends Phaser.Scene {
       if (i < r.stars) {
         star.setScale(0);
         this.tweens.add({ targets: star, scale: 2, delay: 250 * i, duration: 250, ease: 'Back.out' });
+        this.time.delayedCall(700 + 250 * i, () => sfx.star(i));
       }
     }
     const tip =

@@ -1,5 +1,6 @@
 // Seed pods: Water grows each one into a trunk topped by a solid leaf platform (spec).
 import Phaser from 'phaser';
+import { sfx } from '../audio/sfx';
 import { TILE } from '../config';
 import { SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import type { SeedPodSpawn } from '../level/LevelData';
@@ -64,9 +65,17 @@ export class SeedPods {
     }
   }
 
+  /** Grows every pod in the column band x1..x2 whose base is between top and bottom (world pixels). */
+  waterColumn(x1: number, x2: number, top: number, bottom: number): void {
+    for (const pod of this.group.getChildren() as SeedPod[]) {
+      if (!pod.grown && pod.x >= x1 && pod.x <= x2 && pod.y >= top && pod.y <= bottom) this.grow(pod);
+    }
+  }
+
   grow(pod: SeedPod): void {
     if (pod.grown) return;
     pod.grown = true;
+    sfx.grow();
     const col = Math.floor(pod.spawn.x / TILE);
     const baseRow = Math.round(pod.spawn.y / TILE) - 1; // the tile the pod sits in
     const topRow = baseRow - (pod.spawn.height - 1);

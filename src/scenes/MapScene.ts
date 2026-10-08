@@ -1,6 +1,7 @@
 // The world map: the five worlds along a path. Finished worlds show their best stars; locked
 // worlds show a padlock. The castle opens only with all four powers (spec), shown as four slots.
 import Phaser from 'phaser';
+import { sfx } from '../audio/sfx';
 import { COLORS, DEBUG, VIEW } from '../config';
 import { POWER_ICONS, TEXTURES } from '../gfx/placeholderTextures';
 import { LEVELS, TEST_LEVEL, findLevel } from '../level/levels';
@@ -102,8 +103,12 @@ export class MapScene extends Phaser.Scene {
 
     const kb = this.input.keyboard!;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => kb.removeAllListeners());
-    for (const key of ['LEFT', 'A', 'UP', 'W']) kb.on(`keydown-${key}`, () => this.select(this.selected - 1));
-    for (const key of ['RIGHT', 'D', 'DOWN', 'S']) kb.on(`keydown-${key}`, () => this.select(this.selected + 1));
+    const move = (d: number) => {
+      this.select(this.selected + d);
+      sfx.menuMove();
+    };
+    for (const key of ['LEFT', 'A', 'UP', 'W']) kb.on(`keydown-${key}`, () => move(-1));
+    for (const key of ['RIGHT', 'D', 'DOWN', 'S']) kb.on(`keydown-${key}`, () => move(1));
     for (const key of ['ENTER', 'SPACE', 'J']) kb.on(`keydown-${key}`, () => this.play());
     if (DEBUG.enabled) {
       // U unlocks every world; T plays the test level.
@@ -134,8 +139,10 @@ export class MapScene extends Phaser.Scene {
     const level = LEVELS[this.selected];
     if (!level || !saveGame.current.unlocked.includes(level.id)) {
       this.cameras.main.shake(150, 0.004);
+      sfx.locked();
       return;
     }
+    sfx.menuSelect();
     this.scene.start(SCENES.select, { levelId: level.id });
   }
 }

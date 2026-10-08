@@ -1,4 +1,5 @@
-// Kenney Pixel Platformer art (CC0, kenney.nl): sheet keys, frame numbers and animations.
+// Sprite sheets: Kenney Pixel Platformer art (CC0, kenney.nl) plus our own Knight and Ranger.
+// Sheet keys, frame numbers and animations.
 // Frame numbers are 0-based, counted left to right, top to bottom on each sheet.
 import Phaser from 'phaser';
 
@@ -9,36 +10,71 @@ export const SHEETS = {
   characters: 'kenney-characters',
   /** 24 x 24 background pieces, 8 per row. */
   backgrounds: 'kenney-backgrounds',
+  /** The heroes: 10 frames each (see HERO_LOOKS), drawn centered on the body with feet on the frame bottom. */
+  knight: 'hero-knight',
+  ranger: 'hero-ranger',
 } as const;
 
 export function loadSheets(scene: Phaser.Scene): void {
   scene.load.spritesheet(SHEETS.tiles, 'assets/kenney/tiles.png', { frameWidth: 18, frameHeight: 18 });
   scene.load.spritesheet(SHEETS.characters, 'assets/kenney/characters.png', { frameWidth: 24, frameHeight: 24 });
   scene.load.spritesheet(SHEETS.backgrounds, 'assets/kenney/backgrounds.png', { frameWidth: 24, frameHeight: 24 });
+  scene.load.spritesheet(SHEETS.knight, 'assets/heroes/knight.png', { frameWidth: 38, frameHeight: 36 });
+  scene.load.spritesheet(SHEETS.ranger, 'assets/heroes/ranger.png', { frameWidth: 30, frameHeight: 36 });
 }
 
-/** A character drawn from the characters sheet: two walking frames. */
+/** A character drawn from a sprite sheet: two walking frames. */
 export interface Look {
   sheet: string;
   frames: [number, number];
   walkAnim: string;
 }
 
-const look = (name: string, frames: [number, number]): Look => ({
-  sheet: SHEETS.characters,
+const look = (name: string, frames: [number, number], sheet: string = SHEETS.characters): Look => ({
+  sheet,
   frames,
   walkAnim: `${name}-walk`,
 });
 
 export const LOOKS = {
-  knight: look('knight', [2, 3]),
-  ranger: look('ranger', [0, 1]),
   walker: look('walker', [18, 19]),
   emberBeetle: look('ember-beetle', [21, 22]),
   thrower: look('thrower', [4, 5]),
   tideFrog: look('tide-frog', [13, 14]),
   flyer: look('flyer', [24, 25]),
 } as const;
+
+/** A hero's frames: standing, a 4-frame walk, jumping, falling, and a 3-frame attack. */
+export interface HeroLook {
+  sheet: string;
+  idle: number;
+  walk: number[];
+  jump: number;
+  fall: number;
+  attack: number[];
+  walkAnim: string;
+  attackAnim: string;
+}
+
+const heroLook = (name: string, sheet: string): HeroLook => ({
+  sheet,
+  idle: 0,
+  walk: [1, 2, 3, 4],
+  jump: 5,
+  fall: 6,
+  attack: [7, 8, 9],
+  walkAnim: `${name}-walk`,
+  attackAnim: `${name}-attack`,
+});
+
+/** Knight: the sword rises, then lunges. Ranger: the bow draws back, then releases. */
+export const HERO_LOOKS = {
+  knight: heroLook('knight', SHEETS.knight),
+  ranger: heroLook('ranger', SHEETS.ranger),
+} as const;
+
+/** How long a hero's attack animation plays. */
+export const HERO_ATTACK_FPS = 16;
 
 /** Single frames from the tiles sheet. */
 export const TILE_FRAMES = {
@@ -74,6 +110,20 @@ export function createAnimations(scene: Phaser.Scene): void {
       frames: scene.anims.generateFrameNumbers(l.sheet, { frames: l.frames }),
       frameRate: 6,
       repeat: -1,
+    });
+  }
+  for (const h of Object.values(HERO_LOOKS)) {
+    scene.anims.create({
+      key: h.walkAnim,
+      frames: scene.anims.generateFrameNumbers(h.sheet, { frames: h.walk }),
+      frameRate: 10,
+      repeat: -1,
+    });
+    scene.anims.create({
+      key: h.attackAnim,
+      frames: scene.anims.generateFrameNumbers(h.sheet, { frames: h.attack }),
+      frameRate: HERO_ATTACK_FPS,
+      repeat: 0,
     });
   }
   scene.anims.create({

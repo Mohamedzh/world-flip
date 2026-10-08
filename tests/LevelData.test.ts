@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { LevelDataError, parseLevel, TILESETS, type TiledMap } from '../src/level/LevelData';
-import { findLevel } from '../src/level/levels';
+import { findLevel, LEVELS } from '../src/level/levels';
 import { TILE } from '../src/config';
 
 const levelsDir = new URL('../public/assets/levels/', import.meta.url);
@@ -63,6 +63,19 @@ describe('level files', () => {
       });
     });
   }
+});
+
+describe('flips across the worlds', () => {
+  it('each world opens with its new flip first and keeps every flip from earlier worlds', () => {
+    const seen = new Set<string>();
+    for (const entry of LEVELS) {
+      const order = parseLevel(load(entry.file)).flipOrder.filter((f) => f !== 'normal');
+      const newOnes = order.filter((f) => !seen.has(f));
+      for (const old of seen) expect(order, `${entry.id} is missing ${old}`).toContain(old);
+      if (newOnes.length > 0) expect(newOnes, `${entry.id} should open with its new flip`).toContain(order[0]);
+      for (const f of order) seen.add(f);
+    }
+  });
 });
 
 describe('parseLevel', () => {

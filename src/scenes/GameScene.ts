@@ -204,6 +204,8 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     this.setUpKeys();
     this.vitals.grantInvulnerability(this.time.now, RESPAWN.graceMs);
     this.showBanner(data.banner ?? this.level.name, 2500);
+    if (data.banner) sfx.gameOver();
+    else sfx.levelStart();
     if (!this.scene.isActive(SCENES.hud)) this.scene.launch(SCENES.hud);
   }
 
@@ -269,21 +271,24 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     switch (element) {
       case 'fire':
         this.fireballs.add(new Fireball(this, hero.x + dir * 8, hero.body.center.y - 2 * g, dir, g));
+        sfx.fireball();
         break;
       case 'water': {
         const feet = g > 0 ? hero.body.bottom : hero.body.top;
         const floorRow = g > 0 ? Math.round(feet / TILE) : Math.round(feet / TILE) - 1;
         this.waves.add(new WaterWave(this, hero.x + dir * 10, feet, dir, floorRow, g));
+        sfx.splash();
         break;
       }
       case 'snow':
         this.snowballs.add(new Snowball(this, hero.x + dir * 8, hero.body.center.y, dir));
+        sfx.shoot();
         break;
       case 'wind':
         this.gust(hero);
+        sfx.gust();
         break;
     }
-    sfx.shoot();
   }
 
   /** Costs hearts, e.g. from a creature's touch. */
@@ -635,12 +640,17 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
 
   /** Per-frame checks for things colliders can't see: water under waves and snowballs. */
   private updateProjectiles(): void {
-    // A wave crossing an empty gap leaves water behind (the Water-then-Snow combo).
-    for (const w of this.waves.getChildren() as WaterWave[]) this.water.leavePuddle(w.frontCol, w.floorRow);
+    for (const w of this.waves.getChildren() as WaterWave[]) {
+      // A wave crossing an empty gap leaves water behind (the Water-then-Snow combo).
+      this.water.leavePuddle(w.frontCol, w.floorRow);
+      // It also waters seed pods a little below it, so casting from a leaf platform works.
+      const feet = w.floorRow * TILE;
+      this.seedPods.waterColumn(w.x - 9, w.x + 9, feet - TILE, feet + WATER.podReachBelow);
+    }
     // A snowball reaching water or a puddle freezes it into an ice bridge.
     for (const s of this.snowballs.getChildren() as Snowball[]) {
       if (this.water.freezeAt(Math.floor(s.x / TILE), Math.floor(s.y / TILE))) {
-        sfx.bounce();
+        sfx.freeze();
         s.burst();
       }
     }
@@ -717,18 +727,22 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
       // Snow then Fire: the ice shatters for double damage.
       c.thaw();
       puff(this, c.x, c.body.center.y, 0xe1f5fe, 10);
+      sfx.shatter();
     }
     const defeated = effect.amount > 0 && c.takeHit(effect.amount, hit.fromX, now);
     if (effect.amount > 0) sfx.hit();
     if (defeated) {
       if (c instanceof Guardian) this.guardianDefeated(c, { x: c.x, y: c.body.bottom });
+      else sfx.defeat();
       return effect;
     }
     const away = Math.sign(c.x - hit.fromX) || 1;
     if (hit.element === 'water') c.push(away * WATER.pushSpeed, 0, WATER.pushMs, now);
     if (hit.element === 'snow') {
-      if (hit.freezes) c.freeze(now);
-      else c.slow(now);
+      if (hit.freezes) {
+        c.freeze(now);
+        sfx.freeze();
+      } else c.slow(now);
     }
     return effect;
   }
@@ -763,6 +777,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
 
   private guardianDefeated(g: Guardian, dropAt: Point): void {
     this.guardians = this.guardians.filter((x) => x !== g);
+    sfx.guardianDefeat();
     const element = GUARDIANS[g.guardianKind].element;
     if (this.powers.has(element)) return; // Replaying a level: the power is already yours.
     this.orbs.add(new PowerOrb(this, this.onGroundNear(dropAt), element));
@@ -794,7 +809,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     // Powers are kept forever, including after death, so save at once.
     saveGame.update((s) => withPower(s, element));
     this.cameras.main.flash(300, 255, 200, 120);
-    sfx.bounce();
+    sfx.powerUp();
     this.showBanner(`You got ${ELEMENT_INFO[element].label.toUpperCase()}!\n${POWER_HINT[element][this.heroKind]}`, 5000);
   }
 
@@ -809,6 +824,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
   private touchCheckpoint(index: number): void {
     if (this.playState !== 'playing' || !this.checkpoints.activate(index)) return;
     this.checkpointFlags[index].clearTint().play(FLAG_ANIM);
+    sfx.checkpoint();
     this.showBanner('Checkpoint!', 1200);
   }
 
@@ -818,6 +834,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     this.physics.pause();
     this.hero.setAlpha(1);
     this.banner = null;
+    sfx.crown();
     const stars = starsFor(this.elapsedMs, this.level.parMs, this.heartsLost);
     // Spec: unlocked levels, powers, best stars and chosen hero are saved after each level.
     saveGame.update((s) => ({
@@ -837,6 +854,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, ActorWorld {
     if (this.playState !== 'playing') return;
     this.playState = 'dying';
     this.heartsLost = true;
+    sfx.death();
     this.hero.freeze();
     this.hero.setAlpha(1).setTint(0xff6666);
     const cam = this.cameras.main;

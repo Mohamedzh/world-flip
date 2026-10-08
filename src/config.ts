@@ -18,9 +18,9 @@ export const PHYSICS = {
 } as const;
 
 export const HERO = {
-  /** Body size in pixels: narrower than a tile so the hero fits through 1-tile gaps. */
+  /** Hitbox in pixels: narrower than a tile so the hero fits through 1-tile-wide gaps. */
   width: 12,
-  height: 16,
+  height: 22,
   runSpeed: 110,
   /** How fast the hero reaches full speed on the ground and in the air. */
   groundAccel: 1400,
@@ -47,8 +47,11 @@ export const HERO = {
 } as const;
 
 export const FLIPS = {
-  /** The world flips every 50 s, with a 3 s warning first (spec). */
-  intervalMs: 50_000,
+  /**
+   * The world flips every 10 s, with a 3 s warning first. The spec said 50 s; play-testing showed
+   * that was too long, and quick flips are more exciting.
+   */
+  intervalMs: 10_000,
   warningMs: 3_000,
   /** Low gravity is 30% of normal: jumps go about 3x higher. */
   lowGravityScale: 0.3,
@@ -101,9 +104,11 @@ export const FIRE = {
 } as const;
 
 export const WATER = {
-  /** The wave rolls forward this fast, for this long (about 6 tiles). */
+  /** The wave rolls forward this fast, for this long (about 10 tiles). */
   speed: 220,
-  lifetimeMs: 500,
+  lifetimeMs: 820,
+  /** A wave also waters seed pods up to this far below it, e.g. when cast from a leaf platform. */
+  podReachBelow: TILE * 3,
   /** Enemies hit are pushed back about 3 tiles (spec): this speed for this long. */
   pushSpeed: 170,
   pushMs: 380,

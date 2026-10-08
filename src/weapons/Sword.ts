@@ -51,6 +51,7 @@ export class Sword implements Weapon {
       this.showArc(dir, ARC_COLOR[element ?? 'none'], element ? 5 : 3);
     }
     sfx.swing();
+    this.hero.playAttack(this.hero.scene.time.now);
   }
 
   private area(dir: 1 | -1): Phaser.Geom.Rectangle {

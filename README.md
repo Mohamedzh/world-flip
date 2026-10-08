@@ -1,6 +1,6 @@
 # World Flip
 
-A side-scrolling browser platformer where the world's rules flip every 50 seconds.
+A side-scrolling browser platformer where the world's rules flip every 10 seconds.
 The full design is in the game design spec; this repo builds it milestone by milestone.
 
 **Status:** milestone 4. Worlds 1-4 (Meadow, Lake, Mountain, Sky) are playable from the world map,
@@ -58,8 +58,9 @@ To start over, clear the save in the browser console: `localStorage.removeItem('
 
 ## World flips
 
-Every 50 seconds the world's rules flip, with a 3-second warning (chime, screen shimmer, next flip's icon in the top bar).
-Each level lists its flips in order; the list loops after the Normal start.
+Every 10 seconds the world's rules flip, with a 3-second warning (chime, screen shimmer, next flip's icon in the top bar).
+(The spec said 50 s; play-testing showed quicker flips are more fun. Change `FLIPS.intervalMs` in `src/config.ts`.)
+Each world opens with its new flip, then also cycles every flip from the worlds before it; `npm test` checks this.
 
 | Flip | What changes |
 | --- | --- |
@@ -125,3 +126,7 @@ If you edit a level by hand in Tiled, delete its script in `scripts/levels/` so 
 ## Credits
 
 Art: [Pixel Platformer](https://kenney.nl/assets/pixel-platformer) by Kenney (kenney.nl), CC0. See `public/assets/kenney/License.txt`.
+The Knight and Ranger sprites (`public/assets/heroes/`) were made from character art supplied for this project; their walk,
+jump, fall and attack frames are built from that art.
+
+Sound: every sound effect is synthesized in the browser (`src/audio/sfx.ts`); there are no sound files.

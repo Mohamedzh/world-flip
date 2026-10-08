@@ -52,5 +52,6 @@ export class Bow implements Weapon {
     const dir = this.hero.facing;
     this.world.fireArrow(this.hero.x + dir * 6, this.hero.body.center.y - 1, dir, charged, element);
     sfx.shoot();
+    this.hero.playAttack(this.hero.scene.time.now);
   }
 }

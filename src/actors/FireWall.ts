@@ -1,6 +1,7 @@
 // A wall of fire from the floor up to the ceiling. It burns on touch and blocks the way;
 // only Water puts it out (spec).
 import Phaser from 'phaser';
+import { sfx } from '../audio/sfx';
 import { FIRE_WALL, TILE } from '../config';
 import { TEXTURES } from '../gfx/placeholderTextures';
 import type { Point } from '../systems/CheckpointTracker';
@@ -34,6 +35,7 @@ export class FireWall extends Phaser.GameObjects.Zone {
   /** Water puts it out in a cloud of steam. */
   extinguish(): void {
     if (!this.active) return;
+    sfx.steam();
     this.flickerTimer.remove();
     for (const f of this.flames) {
       puff(this.scene, f.x, f.y, 0xeceff1, 5);

@@ -1,6 +1,6 @@
 // The two heroes. They share movement, health and powers; only the weapon differs (spec).
 import type Phaser from 'phaser';
-import { LOOKS, type Look } from '../gfx/sprites';
+import { HERO_LOOKS, type HeroLook } from '../gfx/sprites';
 import type { Point } from '../systems/CheckpointTracker';
 import type { Element, PowerSystem } from '../systems/powers';
 import { Bow } from '../weapons/Bow';
@@ -13,7 +13,7 @@ export class Knight extends Hero {
   protected readonly weapon: Weapon;
 
   constructor(scene: Phaser.Scene, at: Point, world: CombatWorld, powers: PowerSystem) {
-    super(scene, at, LOOKS.knight, world, powers);
+    super(scene, at, HERO_LOOKS.knight, world, powers);
     this.weapon = new Sword(this, world);
   }
 }
@@ -23,7 +23,7 @@ export class Ranger extends Hero {
   protected readonly weapon: Weapon;
 
   constructor(scene: Phaser.Scene, at: Point, world: CombatWorld, powers: PowerSystem) {
-    super(scene, at, LOOKS.ranger, world, powers);
+    super(scene, at, HERO_LOOKS.ranger, world, powers);
     this.weapon = new Bow(this, world);
   }
 }
@@ -39,15 +39,15 @@ export function createHero(
 }
 
 /** Shown on the hero select screen. */
-export const HERO_INFO: Record<HeroKind, { name: string; look: Look; lines: string[] }> = {
+export const HERO_INFO: Record<HeroKind, { name: string; look: HeroLook; lines: string[] }> = {
   knight: {
     name: 'Knight',
-    look: LOOKS.knight,
+    look: HERO_LOOKS.knight,
     lines: ['Sword', 'Close and brave', 'Strong hits up close'],
   },
   ranger: {
     name: 'Ranger',
-    look: LOOKS.ranger,
+    look: HERO_LOOKS.ranger,
     lines: ['Bow and arrows', 'Safe from far away', 'Hold J to charge'],
   },
 };

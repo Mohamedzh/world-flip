@@ -1,6 +1,7 @@
 // Wooden crates that Fire burns away (spec: "burns vines and wooden barriers").
 // Setting one crate alight burns every crate touching it, spreading outward.
 import Phaser from 'phaser';
+import { sfx } from '../audio/sfx';
 import { FIRE, TILE } from '../config';
 import { sparks } from '../weapons/Fireball';
 
@@ -22,6 +23,7 @@ export class Burnables {
   /** Lights the crate at (col, row). Returns false if there is no crate there. */
   ignite(col: number, row: number): boolean {
     if (!this.layer.hasTileAt(col, row) || this.burning.has(`${col},${row}`)) return false;
+    sfx.crateBurn();
     // Breadth-first over touching crates; each one burns a little after the one before it.
     const queue: [number, number, number][] = [[col, row, 0]];
     this.burning.add(`${col},${row}`);

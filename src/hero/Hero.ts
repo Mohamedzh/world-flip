@@ -1,9 +1,10 @@
 // The hero's movement, powers and weapon slot, shared by both heroes. Only the weapon differs.
 // Movement works with gravity pulling down or up (the upside-down flip).
 import Phaser from 'phaser';
+import { sfx } from '../audio/sfx';
 import { onFloor, orientToGravity } from '../actors/gravity';
 import { HERO, PHYSICS, WIND } from '../config';
-import type { Look } from '../gfx/sprites';
+import { HERO_ATTACK_FPS, type HeroLook } from '../gfx/sprites';
 import type { PlayerInput } from '../input/Controls';
 import type { Point } from '../systems/CheckpointTracker';
 import type { GravityDir } from '../systems/flips';
@@ -12,9 +13,6 @@ import { PowerTrigger, type PowerSystem } from '../systems/powers';
 import type { CombatWorld, Weapon } from '../weapons/Weapon';
 
 export type HeroKind = 'knight' | 'ranger';
-
-/** Where the hero's body sits in the 24 x 24 character frame in normal gravity. */
-const BODY_OFFSET_Y = 24 - HERO.height - 1;
 
 export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
@@ -36,22 +34,29 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
   private glideMs = 0;
   private gravityDir: GravityDir = 1;
   private readonly powerTrigger = new PowerTrigger();
+  /** Where the body sits in the frame in normal gravity: centered, feet on the frame bottom. */
+  private readonly bodyOffsetY: number;
+  /** The attack animation plays until this time; other animation waits for it. */
+  private attackUntil = 0;
+  /** The Ranger holds the drawn-bow pose while charging a shot. */
+  private drawingBow = false;
 
   constructor(
     scene: Phaser.Scene,
     at: Point,
-    private readonly look: Look,
+    private readonly look: HeroLook,
     protected readonly world: CombatWorld,
     readonly powers: PowerSystem,
   ) {
-    super(scene, at.x, at.y, look.sheet, look.frames[0]);
+    super(scene, at.x, at.y, look.sheet, look.idle);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     // Position is the hero's feet, matching where level objects mark the floor.
     this.setOrigin(0.5, 1);
     this.setDepth(2);
-    // The body sits at the bottom middle of the 24 x 24 character frame.
-    this.body.setSize(HERO.width, HERO.height, false).setOffset((24 - HERO.width) / 2, BODY_OFFSET_Y);
+    // The body sits at the bottom middle of the frame (the art is drawn centered on the body).
+    this.bodyOffsetY = this.frame.realHeight - HERO.height;
+    this.body.setSize(HERO.width, HERO.height, false).setOffset((this.frame.realWidth - HERO.width) / 2, this.bodyOffsetY);
     this.setCollideWorldBounds(true);
   }
 
@@ -75,12 +80,12 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
 
   setGravityDir(dir: GravityDir): void {
     this.gravityDir = dir;
-    orientToGravity(this, dir, BODY_OFFSET_Y);
+    orientToGravity(this, dir, this.bodyOffsetY);
   }
 
   update(input: PlayerInput, deltaMs: number, now: number): void {
     this.move(input, deltaMs, now);
-    this.animate();
+    this.animate(now);
 
     // Tap K to cast; hold K and press J to charge the weapon instead (both use the power's cooldown).
     let attack = input;
@@ -118,12 +123,14 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
       // Jump, using coyote time and the jump buffer so near-misses still count.
       if (this.jumpBufferMs > 0 && this.coyoteMs > 0) {
         this.setFallSpeed(-HERO.jumpVelocity);
+        sfx.jump();
         this.jumpBufferMs = 0;
         this.coyoteMs = 0;
         this.rising = true;
       } else if (input.jumpPressed && !grounded && this.powers.active === 'wind' && this.powers.useActive(now)) {
         // Wind: a second jump in mid-air (it uses Wind's cooldown), then holding jump glides.
         this.setFallSpeed(-WIND.doubleJumpVelocity);
+        sfx.doubleJump();
         this.jumpBufferMs = 0;
         this.rising = true;
         this.glideMs = WIND.glideMs;
@@ -149,14 +156,28 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     return this.glideMs > 0 && !this.onGround && this.fallSpeed > 0;
   }
 
-  /** Walking frames while running on the ground; the second frame mid-air; the first standing still. */
-  private animate(): void {
-    if (this.onGround && Math.abs(this.body.velocity.x) > 10) {
+  /**
+   * Walking on the ground, a jump pose while rising and a fall pose while dropping, standing still
+   * otherwise. An attack plays to the end first; a bow being charged holds its drawn pose.
+   */
+  private animate(now: number): void {
+    if (now < this.attackUntil) return;
+    if (this.drawingBow) {
+      this.stop();
+      this.setFrame(this.look.attack[0]);
+    } else if (this.onGround && Math.abs(this.body.velocity.x) > 10) {
       this.play(this.look.walkAnim, true);
     } else {
       this.stop();
-      this.setFrame(this.onGround ? this.look.frames[0] : this.look.frames[1]);
+      this.setFrame(this.onGround ? this.look.idle : this.fallSpeed < 0 ? this.look.jump : this.look.fall);
     }
+  }
+
+  /** Plays the weapon's attack animation (sword lunge, bow release). */
+  playAttack(now: number): void {
+    this.drawingBow = false;
+    this.play(this.look.attackAnim);
+    this.attackUntil = now + (this.look.attack.length / HERO_ATTACK_FPS) * 1000;
   }
 
   setMaxFallSpeed(speed: number): void {
@@ -187,6 +208,7 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
 
   /** Glows while a weapon charges; flashes when the charge is ready. */
   showCharge(progress: number, now: number): void {
+    this.drawingBow = progress > 0;
     if (progress <= 0) this.clearTint();
     else if (progress < 1) this.setTint(0xfffde7);
     else this.setTint(Math.floor(now / 80) % 2 ? 0xfff176 : 0xffffff);
@@ -211,6 +233,8 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     this.glideMs = 0;
     this.weapon.reset();
     this.powerTrigger.reset();
+    this.attackUntil = 0;
+    this.drawingBow = false;
     this.clearTint();
     this.setFlipX(false);
   }

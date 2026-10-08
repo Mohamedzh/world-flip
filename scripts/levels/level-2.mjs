@@ -33,14 +33,15 @@ g.place('checkpoint', 108, 11);
 g.ground(116, 117, 10);
 g.place('tideFrog', 132, 11);
 
-// 5. The last lake: too wide to jump. Each rock has a seed pod that Water grows into a leaf platform.
-lake(141, 157);
-g.ground(146, 146, 12);
-g.ground(152, 152, 12);
-g.place('seedPod', 146, 11, { height: 2 }).place('seedPod', 152, 11, { height: 2 });
+// 5. The last lake: too wide to jump. Two rocks hold seed pods; one Water wave from the shore
+//    reaches both and grows them into a leaf bridge.
+lake(141, 155);
+g.ground(145, 145, 12);
+g.ground(150, 150, 12);
+g.place('seedPod', 145, 11, { height: 2 }).place('seedPod', 150, 11, { height: 2 });
 
 // 6. The crown.
-g.ground(158, 199, 12);
+g.ground(156, 199, 12);
 g.place('enemy', 168, 11).place('crown', 192, 11);
 
 writeLevel(g, new URL('../../public/assets/levels/level-2.tmj', import.meta.url), {
