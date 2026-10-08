@@ -75,7 +75,8 @@ export class HudScene extends Phaser.Scene {
     this.powerCooldown = this.add.rectangle(0, 2, 15, 15, 0x10141c, 0.7).setOrigin(0, 0);
     this.powerMarker = this.add.rectangle(0, 18, 15, 2, COLORS.crown).setOrigin(0, 0);
 
-    this.timeText = this.add.text(VIEW.width - 6, 4, '', TEXT).setOrigin(1, 0);
+    // The time sits left of the music and sound buttons in the top-right corner.
+    this.timeText = this.add.text(VIEW.width - 44, 4, '', TEXT).setOrigin(1, 0);
 
     // Current flip in the middle of the top bar: [icon] Normal 0:47.
     // During the warning: [icon] Normal >> [next icon] in 3, flashing.

@@ -1,3 +1,5 @@
+import { soundSettings } from './settings';
+
 // Sound effects synthesized with WebAudio, so the game needs no sound files.
 // Tones make the musical sounds (fanfares, chimes); filtered noise makes whooshes, splashes and crackles.
 // The flip warning chime stays clearly different from everything else (spec).
@@ -5,20 +7,15 @@
 let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
 let master: GainNode | null = null;
-let muted = false;
 
-/** The shared audio output (also used by the music), or null if the browser has no audio. */
-export function audioOut(): { ctx: AudioContext; master: GainNode } | null {
-  const a = audio();
-  return a && master ? { ctx: a, master } : null;
-}
+const SFX_VOLUME = 0.8;
 
-/** M key: turns all sound and music off or on. Returns whether it is now muted. */
-export function toggleMute(): boolean {
-  muted = !muted;
+/** The sound-effects button / X key: turns sound effects on or off. Returns whether they are now on. */
+export function toggleSfx(): boolean {
+  soundSettings.setSfx(!soundSettings.sfx);
   const a = audio();
-  if (a && master) master.gain.setTargetAtTime(muted ? 0 : 0.8, a.currentTime, 0.02);
-  return muted;
+  if (a && master) master.gain.setTargetAtTime(soundSettings.sfx ? SFX_VOLUME : 0, a.currentTime, 0.02);
+  return soundSettings.sfx;
 }
 
 function audio(): AudioContext | null {
@@ -26,7 +23,7 @@ function audio(): AudioContext | null {
     if (!ctx) {
       ctx = new AudioContext();
       master = ctx.createGain();
-      master.gain.value = muted ? 0 : 0.8;
+      master.gain.value = soundSettings.sfx ? SFX_VOLUME : 0;
       master.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') void ctx.resume();

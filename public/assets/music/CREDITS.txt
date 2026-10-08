@@ -1,0 +1,15 @@
+Music by Juhani Junkala (https://juhanijunkala.com/), released under CC0
+(http://creativecommons.org/publicdomain/zero/1.0/). From OpenGameArt.org:
+
+- "4 Chiptunes (Adventure)" / [Chiptune Adventures]: https://opengameart.org/content/4-chiptunes-adventure
+    menu.ogg     = 4. Stage Select   (main menu and world map)
+    sky.ogg      = 2. Stage 2        (World 4: Sky)
+    castle.ogg   = 3. Boss Fight     (World 5: Crown Castle)
+    ending.ogg   = 1. Stage 1        (ending)
+- "JRPG Music Pack #1 [Exploration]": https://opengameart.org/content/jrpg-pack-1-exploration
+    meadow.ogg   = Exploration1 - Grasslands      (World 1: Meadow)
+    lake.ogg     = Exploration6 - Tropical Island (World 2: Lake)
+    mountain.ogg = Exploration3 - Tha'el Mines    (World 3: Mountain)
+
+From the author's notes in both packs: "These music tracks have been released under CC0 creative
+commons license. You can do anything you want with these tunes."

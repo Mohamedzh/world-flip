@@ -31,7 +31,8 @@ test level with every flip, creature and power puzzle close together (press P th
 | Switch power | L, or 1-4 (fire, water, snow, wind) |
 | Double jump and glide | Jump again in mid-air while Wind is the active power; hold jump to glide |
 | Pause | Esc (then Q to go back to the map) |
-| Sound and music on/off | M |
+| Music on/off | M, or the speaker-with-note button (top right) |
+| Sound effects on/off | X, or the speaker-with-waves button (top right) |
 | World map, hero select | Arrow keys, Enter; Esc on hero select goes back to the map |
 
 Debug keys, only in `npm run dev`:
@@ -116,7 +117,7 @@ two summoned mushrooms in the friend/foe swap. Beat him and the crown floats dow
 - `src/world/`: color blocks, burnable crates, water and ice, seed pods.
 - `src/scenes/`: Boot (loading), Menu (main menu, controls, about), Map (world map), Select (hero select), Game (the level),
   Hud (top bar, messages, results), Ending.
-- `src/audio/`: synthesized sound effects (`sfx.ts`) and a small music sequencer with one tune per world (`music.ts`).
+- `src/audio/`: synthesized sound effects (`sfx.ts`), the music player (`music.ts`, one track per world) and the on/off settings.
 - `src/gfx/`: Kenney sprite sheet frames and animations, plus a few textures drawn in code.
 - `public/assets/levels/*.tmj`: levels, editable in the [Tiled](https://www.mapeditor.org/) map editor.
 
@@ -146,4 +147,5 @@ Art: [Pixel Platformer](https://kenney.nl/assets/pixel-platformer) by Kenney (ke
 The Knight and Ranger sprites (`public/assets/heroes/`) were drawn by Mariam Mohamed Samir; their walk,
 jump, fall and attack frames are built from that art.
 
-Sound and music: synthesized in the browser (`src/audio/`); there are no sound files.
+Music: tracks by Juhani Junkala, CC0, from OpenGameArt.org ("4 Chiptunes (Adventure)" and "JRPG Music Pack #1 [Exploration]").
+See `public/assets/music/CREDITS.txt` for which track plays where. Sound effects are synthesized in the browser (`src/audio/sfx.ts`).

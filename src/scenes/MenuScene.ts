@@ -27,7 +27,8 @@ const CONTROLS: [string, string][] = [
   ['Switch power', 'L, or 1 2 3 4'],
   ['Double jump, glide', 'Jump in the air (with Wind)'],
   ['Pause', 'Esc  (then Q: back to the map)'],
-  ['Sound on/off', 'M'],
+  ['Music on/off', 'M (or the speaker buttons)'],
+  ['Sound effects on/off', 'X'],
 ];
 
 export class MenuScene extends Phaser.Scene {
@@ -105,7 +106,7 @@ export class MenuScene extends Phaser.Scene {
       this.text(
         cx,
         184,
-        'Art: the Knight and Ranger are drawn by Mariam Mohamed Samir\nOther art: Kenney (kenney.nl, CC0)    Built with Phaser',
+        'Art: the Knight and Ranger are drawn by Mariam Mohamed Samir\nOther art: Kenney (kenney.nl, CC0)\nMusic: Juhani Junkala (CC0)    Built with Phaser',
         { fontSize: '9px', lineSpacing: 4, color: '#e0e0e0' },
       );
       this.backHint();

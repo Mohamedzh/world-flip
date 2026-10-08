@@ -6,7 +6,7 @@ import { HudScene } from './scenes/HudScene';
 import { MapScene } from './scenes/MapScene';
 import { MenuScene } from './scenes/MenuScene';
 import { EndingScene } from './scenes/EndingScene';
-import { toggleMute } from './audio/sfx';
+import { UiScene } from './scenes/UiScene';
 import { SelectScene } from './scenes/SelectScene';
 
 const game = new Phaser.Game({
@@ -29,12 +29,8 @@ const game = new Phaser.Game({
       debug: DEBUG.enabled,
     },
   },
-  scene: [BootScene, MenuScene, MapScene, SelectScene, GameScene, HudScene, EndingScene],
-});
-
-// M turns all sound and music off or on, anywhere in the game.
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'm' || e.key === 'M') toggleMute();
+  // UiScene is last so its sound buttons are drawn on top of every other screen.
+  scene: [BootScene, MenuScene, MapScene, SelectScene, GameScene, HudScene, EndingScene, UiScene],
 });
 
 // Lets the browser console inspect the running game during development.

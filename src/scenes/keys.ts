@@ -5,6 +5,7 @@ export const SCENES = {
   menu: 'Menu',
   map: 'Map',
   ending: 'Ending',
+  ui: 'Ui',
   select: 'Select',
   game: 'Game',
   hud: 'Hud',
