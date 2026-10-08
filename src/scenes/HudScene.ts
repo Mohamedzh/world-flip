@@ -1,10 +1,12 @@
-// The top bar (hearts, lives, current flip, time) and on-screen messages, drawn above the level.
+// The top bar (hearts, lives, power, current flip, time), the guardian's health bar,
+// on-screen messages and the results panel, drawn above the level.
 import Phaser from 'phaser';
-import { VIEW } from '../config';
-import { FLIP_ICONS, TEXTURES } from '../gfx/placeholderTextures';
+import { COLORS, VIEW } from '../config';
+import { FLIP_ICONS, POWER_ICONS, TEXTURES } from '../gfx/placeholderTextures';
+import { LOOKS, SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import { FLIP_INFO } from '../systems/flips';
 import { formatTime } from '../systems/math';
-import type { GameScene, HudState } from './GameScene';
+import type { GameScene, HudState, LevelResult } from './GameScene';
 import { SCENES } from './keys';
 
 const TEXT: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -17,20 +19,28 @@ const TEXT: Phaser.Types.GameObjects.Text.TextStyle = {
 
 /** How long the controls reminder stays on screen at the start. */
 const HELP_MS = 8000;
+const HEART_SPACING = 15;
 
 export class HudScene extends Phaser.Scene {
   private hearts: Phaser.GameObjects.Image[] = [];
   private livesIcon!: Phaser.GameObjects.Image;
   private livesText!: Phaser.GameObjects.Text;
+  private powerIcon!: Phaser.GameObjects.Image;
+  private powerCooldown!: Phaser.GameObjects.Rectangle;
+  private powerKey!: Phaser.GameObjects.Text;
   private timeText!: Phaser.GameObjects.Text;
   private flipIcon!: Phaser.GameObjects.Image;
   private flipText!: Phaser.GameObjects.Text;
   private nextIcon!: Phaser.GameObjects.Image;
   private nextText!: Phaser.GameObjects.Text;
+  private guardianName!: Phaser.GameObjects.Text;
+  private guardianBarBack!: Phaser.GameObjects.Rectangle;
+  private guardianBar!: Phaser.GameObjects.Rectangle;
   private shimmer!: Phaser.GameObjects.Rectangle;
   private bannerText!: Phaser.GameObjects.Text;
   private pausedText!: Phaser.GameObjects.Text;
   private helpText!: Phaser.GameObjects.Text;
+  private resultPanel: Phaser.GameObjects.Container | null = null;
 
   constructor() {
     super(SCENES.hud);
@@ -43,10 +53,18 @@ export class HudScene extends Phaser.Scene {
     this.hearts = [];
     const { maxHearts } = this.gameScene().hudState;
     for (let i = 0; i < maxHearts; i++) {
-      this.hearts.push(this.add.image(6 + i * 11, 6, TEXTURES.heartFull).setOrigin(0, 0));
+      this.hearts.push(this.add.image(2 + i * HEART_SPACING, 1, SHEETS.tiles, TILE_FRAMES.heartFull).setOrigin(0, 0));
     }
-    this.livesIcon = this.add.image(6 + maxHearts * 11 + 6, 4, TEXTURES.knight).setOrigin(0, 0).setScale(0.75);
-    this.livesText = this.add.text(6 + maxHearts * 11 + 17, 4, '', TEXT);
+    const afterHearts = 4 + maxHearts * HEART_SPACING;
+    this.livesIcon = this.add.image(afterHearts, 1, LOOKS.knight.sheet, LOOKS.knight.frames[0]).setOrigin(0, 0).setScale(0.75);
+    this.livesText = this.add.text(afterHearts + 19, 4, '', TEXT);
+
+    // Active power with a dark overlay that shrinks as it recharges.
+    const powerX = afterHearts + 46;
+    this.powerIcon = this.add.image(powerX, 2, POWER_ICONS.fire).setOrigin(0, 0).setScale(1.5);
+    this.powerCooldown = this.add.rectangle(powerX, 2, 15, 15, 0x10141c, 0.7).setOrigin(0, 0);
+    this.powerKey = this.add.text(powerX + 17, 4, 'K', TEXT);
+
     this.timeText = this.add.text(VIEW.width - 6, 4, '', TEXT).setOrigin(1, 0);
 
     // Current flip in the middle of the top bar: [icon] Normal 0:47.
@@ -56,29 +74,61 @@ export class HudScene extends Phaser.Scene {
     this.nextIcon = this.add.image(0, 9, FLIP_ICONS.normal).setOrigin(0, 0.5);
     this.nextText = this.add.text(0, 4, '', TEXT);
 
-    const center = { x: VIEW.width / 2, y: VIEW.height / 2 };
-    this.bannerText = this.add
-      .text(center.x, center.y - 40, '', { ...TEXT, fontSize: '14px', align: 'center' })
-      .setOrigin(0.5);
+    const cx = VIEW.width / 2;
+    this.guardianName = this.add.text(cx, 24, '', TEXT).setOrigin(0.5, 0);
+    this.guardianBarBack = this.add.rectangle(cx - 60, 38, 120, 5, 0x10141c, 0.8).setOrigin(0, 0);
+    this.guardianBar = this.add.rectangle(cx - 59, 39, 118, 3, COLORS.heart).setOrigin(0, 0);
+
+    const cy = VIEW.height / 2;
+    this.bannerText = this.add.text(cx, cy - 40, '', { ...TEXT, fontSize: '14px', align: 'center' }).setOrigin(0.5);
     this.pausedText = this.add
-      .text(center.x, center.y, 'PAUSED\n\nPress Esc to keep playing', { ...TEXT, fontSize: '14px', align: 'center' })
+      .text(cx, cy, 'PAUSED\n\nPress Esc to keep playing', { ...TEXT, fontSize: '14px', align: 'center' })
       .setOrigin(0.5);
     this.helpText = this.add
-      .text(center.x, VIEW.height - 8, 'Move: Arrows/A D   Jump: Space/W   Attack: J   Pause: Esc', TEXT)
+      .text(cx, VIEW.height - 8, 'Move: Arrows/A D   Jump: Space/W   Attack: J   Power: K   Pause: Esc', TEXT)
       .setOrigin(0.5, 1);
     this.time.delayedCall(HELP_MS, () => this.tweens.add({ targets: this.helpText, alpha: 0, duration: 600 }));
+    this.resultPanel = null;
   }
 
   update(time: number): void {
     const s = this.gameScene().hudState;
-    this.hearts.forEach((h, i) => h.setTexture(i < s.hearts ? TEXTURES.heartFull : TEXTURES.heartEmpty));
-    this.livesIcon.setTexture(s.heroKind === 'knight' ? TEXTURES.knight : TEXTURES.ranger);
+    this.hearts.forEach((h, i) => h.setFrame(i < s.hearts ? TILE_FRAMES.heartFull : TILE_FRAMES.heartEmpty));
+    const look = LOOKS[s.heroKind];
+    this.livesIcon.setFrame(look.frames[0]);
     this.livesText.setText(`x${s.lives}`);
     this.timeText.setText(formatTime(s.elapsedMs));
     this.bannerText.setText(s.banner ?? '');
     this.pausedText.setVisible(s.playState === 'paused');
-
+    this.updatePower(s.power);
+    this.updateGuardian(s.guardian);
     this.updateFlipBar(s.flip, time);
+    if (s.result && !this.resultPanel) {
+      this.resultPanel = this.showResult(s.result);
+      this.helpText.setVisible(false);
+    }
+  }
+
+  private updatePower(power: HudState['power']): void {
+    const visible = power !== null;
+    this.powerIcon.setVisible(visible);
+    this.powerKey.setVisible(visible);
+    this.powerCooldown.setVisible(visible && power.readiness < 1);
+    if (!power) return;
+    this.powerIcon.setTexture(POWER_ICONS[power.element]);
+    // The overlay covers the part that is still recharging, shrinking from the top.
+    const left = 1 - power.readiness;
+    this.powerCooldown.setSize(15, 15 * left).setY(2 + 15 * power.readiness);
+  }
+
+  private updateGuardian(guardian: HudState['guardian']): void {
+    const visible = guardian !== null;
+    this.guardianName.setVisible(visible);
+    this.guardianBarBack.setVisible(visible);
+    this.guardianBar.setVisible(visible);
+    if (!guardian) return;
+    this.guardianName.setText(guardian.name);
+    this.guardianBar.setSize(Math.max(0, 118 * guardian.health), 3);
   }
 
   private updateFlipBar(flip: HudState['flip'], time: number): void {
@@ -110,6 +160,36 @@ export class HudScene extends Phaser.Scene {
       p.obj.setX(x);
       x += p.w + gap;
     }
+  }
+
+  /** The end-of-level panel: stars, time against par, a tip for the next star, and the best result. */
+  private showResult(r: LevelResult): Phaser.GameObjects.Container {
+    const cx = VIEW.width / 2;
+    const cy = VIEW.height / 2;
+    const panel = this.add.container(cx, cy);
+    panel.add(this.add.rectangle(0, 0, 300, 150, 0x10141c, 0.85).setStrokeStyle(2, COLORS.crown));
+    panel.add(this.add.text(0, -58, 'You found the crown!', { ...TEXT, fontSize: '14px' }).setOrigin(0.5));
+    for (let i = 0; i < 3; i++) {
+      const star = this.add.image((i - 1) * 30, -28, i < r.stars ? TEXTURES.starFull : TEXTURES.starEmpty).setScale(2);
+      panel.add(star);
+      // Earned stars pop in one after another.
+      if (i < r.stars) {
+        star.setScale(0);
+        this.tweens.add({ targets: star, scale: 2, delay: 250 * i, duration: 250, ease: 'Back.out' });
+      }
+    }
+    const tip =
+      r.stars === 3
+        ? 'Perfect run!'
+        : r.stars === 2
+          ? 'Finish without getting hurt for 3 stars'
+          : `Finish under ${formatTime(r.parMs)} for 2 stars`;
+    const lines = [`Time ${formatTime(r.timeMs)}    Par ${formatTime(r.parMs)}`, tip, `Best: ${r.bestStars} of 3 stars`];
+    panel.add(this.add.text(0, 14, lines.join('\n'), { ...TEXT, align: 'center', lineSpacing: 4 }).setOrigin(0.5));
+    panel.add(this.add.text(0, 58, 'Press Enter to continue', TEXT).setOrigin(0.5));
+    panel.setScale(0.8).setAlpha(0);
+    this.tweens.add({ targets: panel, scale: 1, alpha: 1, duration: 200 });
+    return panel;
   }
 
   private gameScene(): GameScene {

@@ -1,8 +1,10 @@
 // An arrow flies straight for about 12 tiles, then gravity pulls it down. It follows whatever gravity
 // the world has at that moment, so arrows in flight obey a flip (spec).
+// A fire arrow (bow charged with Fire) lights crates it hits.
 import Phaser from 'phaser';
 import { BOW } from '../config';
 import { TEXTURES } from '../gfx/placeholderTextures';
+import type { Element } from '../systems/powers';
 
 export class Arrow extends Phaser.Physics.Arcade.Image {
   declare body: Phaser.Physics.Arcade.Body;
@@ -15,7 +17,14 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
   private readonly startX: number;
   private readonly bornAt: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, dir: 1 | -1, charged: boolean) {
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    dir: 1 | -1,
+    charged: boolean,
+    readonly element: Element | null = null,
+  ) {
     super(scene, x, y, TEXTURES.arrow);
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -28,6 +37,7 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
     this.body.setVelocityX(dir * BOW.speed);
     this.setRotation(dir > 0 ? 0 : Math.PI);
     if (charged) this.setTint(0xfff59d).setScale(1.25);
+    if (element === 'fire') this.setTint(0xff7043).setScale(1.25);
   }
 
   /** Called every frame by the arrows group. */

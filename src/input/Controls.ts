@@ -1,4 +1,4 @@
-// Keyboard controls from the spec. Use power (K) and switch power (L, 1-4) arrive with the powers in milestone 3.
+// Keyboard controls from the spec. Switching powers (L, 1-4) is handled as key presses by the Game scene.
 import Phaser from 'phaser';
 
 export interface MoveInput {
@@ -17,13 +17,19 @@ export interface AttackInput {
   attackPressed: boolean;
 }
 
-export type PlayerInput = MoveInput & AttackInput;
+export interface PowerInput {
+  /** Power key (K) is being held this frame. Tap to cast; hold it and press J to charge the weapon. */
+  powerHeld: boolean;
+}
+
+export type PlayerInput = MoveInput & AttackInput & PowerInput;
 
 export class Controls {
   private readonly left: Phaser.Input.Keyboard.Key[];
   private readonly right: Phaser.Input.Keyboard.Key[];
   private readonly jump: Phaser.Input.Keyboard.Key[];
   private readonly attack: Phaser.Input.Keyboard.Key[];
+  private readonly power: Phaser.Input.Keyboard.Key[];
 
   constructor(scene: Phaser.Scene) {
     const kb = scene.input.keyboard!;
@@ -34,6 +40,7 @@ export class Controls {
     // Spec: Space or W. Up arrow is added because players using the arrow keys reach for it.
     this.jump = keys(K.SPACE, K.W, K.UP);
     this.attack = keys(K.J);
+    this.power = keys(K.K);
   }
 
   read(): PlayerInput {
@@ -44,12 +51,13 @@ export class Controls {
       jumpPressed: justDown(this.jump),
       attackHeld: this.attack.some((k) => k.isDown),
       attackPressed: justDown(this.attack),
+      powerHeld: this.power.some((k) => k.isDown),
     };
   }
 
   /** Forgets keys held during a pause or respawn, so the hero doesn't act the moment play resumes. */
   reset(): void {
-    for (const k of [...this.left, ...this.right, ...this.jump, ...this.attack]) k.reset();
+    for (const k of [...this.left, ...this.right, ...this.jump, ...this.attack, ...this.power]) k.reset();
   }
 }
 

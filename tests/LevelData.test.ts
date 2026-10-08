@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { LevelDataError, parseLevel, TILESET_NAME, type TiledMap } from '../src/level/LevelData';
+import { LevelDataError, parseLevel, TILESETS, type TiledMap } from '../src/level/LevelData';
+import { findLevel } from '../src/level/levels';
 import { TILE } from '../src/config';
 
 const levelsDir = new URL('../public/assets/levels/', import.meta.url);
@@ -20,7 +21,17 @@ describe('level files', () => {
       it('uses the shared tile size and tileset', () => {
         expect(map.tilewidth).toBe(TILE);
         expect(map.tileheight).toBe(TILE);
-        expect(map.tilesets.map((t: { name: string }) => t.name)).toContain(TILESET_NAME);
+        const names = map.tilesets.map((t: { name: string }) => t.name);
+        for (const ts of Object.values(TILESETS)) expect(names).toContain(ts);
+      });
+
+      it('is listed in the level registry', () => {
+        expect(findLevel(file.replace(/.tmj$/, ''))?.file).toBe(file);
+      });
+
+      it('has a name and a par time', () => {
+        expect(objects.name).not.toBe('Unnamed level');
+        expect(objects.parMs).toBeGreaterThan(0);
       });
 
       it('has 2-3 checkpoints, as the spec asks', () => {
@@ -44,7 +55,7 @@ describe('level files', () => {
 
       it('spawn, checkpoints, crown and creatures all stand on ground', () => {
         const ground = map.layers.find((l: { name: string }) => l.name === 'ground').data as number[];
-        for (const p of [objects.spawn, ...objects.checkpoints, objects.crown, ...objects.enemies, ...objects.mushrooms]) {
+        for (const p of [objects.spawn, ...objects.checkpoints, objects.crown, ...objects.enemies, ...objects.mushrooms, ...objects.guardians]) {
           const col = Math.floor(p.x / TILE);
           const rowBelow = Math.round(p.y / TILE);
           expect(ground[rowBelow * map.width + col], `nothing under (${p.x}, ${p.y})`).toBeGreaterThan(0);
@@ -64,9 +75,14 @@ describe('parseLevel', () => {
       { name: 'ground', type: 'tilelayer' },
       { name: 'orange', type: 'tilelayer' },
       { name: 'blue', type: 'tilelayer' },
+      { name: 'burnable', type: 'tilelayer' },
       { name: 'objects', type: 'objectgroup', objects: objects as never },
     ],
-    properties: [{ name: 'flipOrder', type: 'string', value: 'lowGravity, colorSwap' }],
+    properties: [
+      { name: 'flipOrder', type: 'string', value: 'lowGravity, colorSwap' },
+      { name: 'parTimeSec', type: 'int', value: 180 },
+      { name: 'name', type: 'string', value: 'Meadow' },
+    ],
   });
   const minimal = [
     { id: 1, name: '', type: 'spawn', x: 0, y: 0 },
@@ -102,11 +118,28 @@ describe('parseLevel', () => {
 
   it('rejects a misspelled flip and a missing flip order', () => {
     const typo = base(minimal);
-    typo.properties = [{ name: 'flipOrder', type: 'string', value: 'lowGravty' }];
+    typo.properties = [
+      { name: 'flipOrder', type: 'string', value: 'lowGravty' },
+      { name: 'parTimeSec', type: 'int', value: 180 },
+    ];
     expect(() => parseLevel(typo)).toThrow(/lowGravty/);
     const none = base(minimal);
-    none.properties = [];
+    none.properties = [{ name: 'parTimeSec', type: 'int', value: 180 }];
     expect(() => parseLevel(none)).toThrow(/flipOrder/);
+  });
+
+  it('reads the name and par time, and requires a par time', () => {
+    const lvl = parseLevel(base(minimal));
+    expect(lvl.name).toBe('Meadow');
+    expect(lvl.parMs).toBe(180_000);
+    const noPar = base(minimal);
+    noPar.properties = noPar.properties!.filter((p) => p.name !== 'parTimeSec');
+    expect(() => parseLevel(noPar)).toThrow(/parTimeSec/);
+  });
+
+  it('reads guardians by kind', () => {
+    const lvl = parseLevel(base([...minimal, { id: 3, name: '', type: 'emberBeetle', x: 7, y: 0 }]));
+    expect(lvl.guardians).toEqual([{ kind: 'emberBeetle', x: 7, y: 0 }]);
   });
 
   it('reads enemies and mushrooms', () => {

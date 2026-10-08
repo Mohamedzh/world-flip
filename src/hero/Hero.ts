@@ -1,9 +1,11 @@
-// The hero's movement, health effects and weapon slot, shared by both heroes. Only the weapon differs.
+// The hero's movement, powers and weapon slot, shared by both heroes. Only the weapon differs.
 import Phaser from 'phaser';
 import { HERO, PHYSICS } from '../config';
+import type { Look } from '../gfx/sprites';
 import type { PlayerInput } from '../input/Controls';
 import type { Point } from '../systems/CheckpointTracker';
 import { approach } from '../systems/math';
+import { PowerTrigger, type PowerSystem } from '../systems/powers';
 import type { CombatWorld, Weapon } from '../weapons/Weapon';
 
 export type HeroKind = 'knight' | 'ranger';
@@ -24,20 +26,23 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
   private controlLockMs = 0;
   /** Only falling is capped; upward speed (jumps, springs) never is. */
   private maxFallSpeed: number = PHYSICS.maxFallSpeed;
+  private readonly powerTrigger = new PowerTrigger();
 
   constructor(
     scene: Phaser.Scene,
     at: Point,
-    texture: string,
+    private readonly look: Look,
     protected readonly world: CombatWorld,
+    readonly powers: PowerSystem,
   ) {
-    super(scene, at.x, at.y, texture);
+    super(scene, at.x, at.y, look.sheet, look.frames[0]);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     // Position is the hero's feet, matching where level objects mark the floor.
     this.setOrigin(0.5, 1);
     this.setDepth(2);
-    this.body.setSize(HERO.width, HERO.height);
+    // The body sits at the bottom middle of the 24 x 24 character frame.
+    this.body.setSize(HERO.width, HERO.height, false).setOffset((24 - HERO.width) / 2, 24 - HERO.height - 1);
     this.setCollideWorldBounds(true);
   }
 
@@ -52,7 +57,21 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
 
   update(input: PlayerInput, deltaMs: number, now: number): void {
     this.move(input, deltaMs);
-    this.weapon.update(input, now);
+    this.animate();
+
+    // Tap K to cast; hold K and press J to charge the weapon instead (both use the power's cooldown).
+    let attack = input;
+    const action = this.powerTrigger.update(input.powerHeld, input.attackPressed);
+    const active = this.powers.active;
+    if (action === 'chargeWeapon' && active && this.powers.ready(active, now) && this.weapon.ready(now)) {
+      this.powers.useActive(now);
+      this.weapon.charge(active, now);
+      attack = { ...input, attackPressed: false };
+    } else if (action === 'cast') {
+      const element = this.powers.useActive(now);
+      if (element) this.world.castPower(element, this);
+    }
+    this.weapon.update(attack, now);
   }
 
   private move(input: PlayerInput, deltaMs: number): void {
@@ -88,6 +107,16 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     }
     if (this.body.velocity.y >= 0) this.rising = false;
     if (this.body.velocity.y > this.maxFallSpeed) this.body.setVelocityY(this.maxFallSpeed);
+  }
+
+  /** Walking frames while running on the ground; the second frame mid-air; the first standing still. */
+  private animate(): void {
+    if (this.onGround && Math.abs(this.body.velocity.x) > 10) {
+      this.play(this.look.walkAnim, true);
+    } else {
+      this.stop();
+      this.setFrame(this.onGround ? this.look.frames[0] : this.look.frames[1]);
+    }
   }
 
   setMaxFallSpeed(speed: number): void {
@@ -126,6 +155,7 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     this.body.setVelocity(0, 0);
     this.body.enable = false;
     this.weapon.reset();
+    this.powerTrigger.reset();
   }
 
   respawnAt(at: Point): void {
@@ -136,6 +166,7 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     this.rising = false;
     this.controlLockMs = 0;
     this.weapon.reset();
+    this.powerTrigger.reset();
     this.clearTint();
     this.setFlipX(false);
   }

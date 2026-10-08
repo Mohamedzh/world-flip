@@ -81,6 +81,44 @@ export const BOW = {
   maxLifetimeMs: 4_000,
 } as const;
 
+/** Power cooldowns from the spec. Charging a weapon uses the same cooldown as casting. */
+export const POWERS = {
+  cooldownMs: { fire: 3_000, water: 4_000, snow: 5_000, wind: 4_000 },
+} as const;
+
+export const FIRE = {
+  /** Fireball damage (spec: 3). */
+  damage: 3,
+  speed: 200,
+  /** Fireballs bounce along the floor this high, a few times, then fizzle. */
+  bounceVelocity: 230,
+  maxBounces: 3,
+  lifetimeMs: 2_500,
+  /** Knight's flaming swing does this much extra damage (spec: +1). */
+  swingBonusDamage: 1,
+  /** Delay between neighboring crates catching fire, so the burn visibly spreads. */
+  burnSpreadMs: 70,
+} as const;
+
+export const GUARDIAN = {
+  /** The Ember Beetle, World 1's guardian. */
+  emberBeetle: {
+    health: 8,
+    walkSpeed: 40,
+    chargeSpeed: 170,
+    /** Time between charges, the warning shake before one, and how long a charge lasts. */
+    chargeEveryMs: 3_200,
+    telegraphMs: 650,
+    chargeMs: 1_100,
+  },
+  /** The guardian's health bar shows when the hero is this close. */
+  showBarRange: TILE * 16,
+} as const;
+
+export const SAVE = {
+  storageKey: 'world-flip-save-v1',
+} as const;
+
 export const ENEMY = {
   /** Health points. A sword hit (2) defeats a basic enemy, an arrow (1) takes two. */
   walkerHealth: 2,
@@ -126,24 +164,21 @@ export const CAMERA = {
 
 export const COLORS = {
   sky: 0x8fd3ff,
-  knight: 0x9aa3ad,
-  ranger: 0x4caf50,
   enemy: 0xe04848,
   enemyCalm: 0xc58bd6,
   friend: 0xffd23f,
   friendHostile: 0xff8a3d,
   stunned: 0x9a9a9a,
   arrow: 0x7a5230,
+  /** Tint for a checkpoint flag not yet reached. */
   checkpointOff: 0x8a8a8a,
-  checkpointOn: 0x7be05a,
   crown: 0xffd23f,
   heart: 0xe8384f,
-  heartEmpty: 0x4a2a33,
   /** Opacity of blocks that are currently ghosts (not solid). */
   ghostAlpha: 0.35,
 } as const;
 
 export const DEBUG = {
-  /** Debug keys (F = flip now, G = physics outlines, N = next checkpoint, H = hurt self) work only in `npm run dev`. */
+  /** Debug keys (F flip now, G physics outlines, N next checkpoint, H hurt self, P get Fire) work only in `npm run dev`. */
   enabled: import.meta.env.DEV,
 } as const;

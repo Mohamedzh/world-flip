@@ -1,6 +1,8 @@
-// Loads the level and tiles, draws the placeholder art, then starts the game.
+// Loads the art and every level, prepares textures and animations, then shows hero select.
 import Phaser from 'phaser';
 import { createPlaceholderTextures } from '../gfx/placeholderTextures';
+import { createAnimations, loadSheets } from '../gfx/sprites';
+import { LEVELS, TEST_LEVEL } from '../level/levels';
 import { ASSETS, SCENES } from './keys';
 
 export class BootScene extends Phaser.Scene {
@@ -9,12 +11,16 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image(ASSETS.tiles, 'assets/tiles/placeholder-tiles.png');
-    this.load.tilemapTiledJSON(ASSETS.testLevel, 'assets/levels/test-level.tmj');
+    loadSheets(this);
+    this.load.image(ASSETS.blockTiles, 'assets/tiles/placeholder-tiles.png');
+    for (const level of [...LEVELS, TEST_LEVEL]) {
+      this.load.tilemapTiledJSON(level.id, `assets/levels/${level.file}`);
+    }
   }
 
   create(): void {
     createPlaceholderTextures(this);
+    createAnimations(this);
     this.scene.start(SCENES.select);
   }
 }

@@ -1,9 +1,9 @@
 // The friend creature: a bounce mushroom that launches the hero high when landed on.
-// During the friend/foe swap it turns hostile: it hops in place and hurts on touch.
+// During the friend/foe swap it turns hostile: it turns red, hops in place and hurts on touch.
 // Weapons can only stun it for 3 s, never defeat it (spec).
 import Phaser from 'phaser';
 import { COLORS, FRIEND } from '../config';
-import { TEXTURES } from '../gfx/placeholderTextures';
+import { SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import type { Point } from '../systems/CheckpointTracker';
 
 export class Mushroom extends Phaser.Physics.Arcade.Sprite {
@@ -15,11 +15,11 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
   private nextHopAt = 0;
 
   constructor(scene: Phaser.Scene, at: Point) {
-    super(scene, at.x, at.y, TEXTURES.mushroom);
+    super(scene, at.x, at.y, SHEETS.tiles, TILE_FRAMES.mushroom);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setOrigin(0.5, 1);
-    this.body.setSize(14, 13);
+    this.body.setSize(12, 11, false).setOffset(3, 7);
   }
 
   get isHostile(): boolean {
@@ -33,8 +33,7 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
   setHostile(hostile: boolean, now: number): void {
     this.hostile = hostile;
     this.stunnedUntil = 0;
-    this.clearTint();
-    this.setTexture(hostile ? TEXTURES.mushroomHostile : TEXTURES.mushroom);
+    this.restoreTint();
     this.nextHopAt = now + 400;
   }
 
@@ -53,11 +52,16 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
     this.body.setVelocityX(0);
     if (this.stunnedUntil > 0 && time >= this.stunnedUntil) {
       this.stunnedUntil = 0;
-      this.clearTint();
+      this.restoreTint();
     }
     if (this.hostile && !this.isStunned(time) && this.body.blocked.down && time >= this.nextHopAt) {
       this.body.setVelocityY(-FRIEND.hostileHopVelocity);
       this.nextHopAt = time + FRIEND.hostileHopIntervalMs;
     }
+  }
+
+  private restoreTint(): void {
+    if (this.hostile) this.setTint(COLORS.friendHostile);
+    else this.clearTint();
   }
 }

@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:tiles": "node scripts/make-placeholder-tiles.mjs",
-    "gen:level": "node scripts/make-test-level.mjs"
+    "gen:levels": "node scripts/make-levels.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

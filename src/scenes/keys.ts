@@ -8,6 +8,6 @@ export const SCENES = {
 } as const;
 
 export const ASSETS = {
-  tiles: 'placeholder-tiles',
-  testLevel: 'test-level',
+  /** Our own orange/blue block tiles (Kenney sheets are in gfx/sprites.ts; levels load under their id). */
+  blockTiles: 'placeholder-tiles',
 } as const;
