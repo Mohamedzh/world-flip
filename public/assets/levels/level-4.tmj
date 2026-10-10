@@ -37,9 +37,19 @@
    "value": 270
   },
   {
+   "name": "flipIntervalSec",
+   "type": "int",
+   "value": 10
+  },
+  {
    "name": "enemyHealth",
    "type": "int",
    "value": 4
+  },
+  {
+   "name": "arrowDamage",
+   "type": "int",
+   "value": 2
   },
   {
    "name": "enemySpeed",

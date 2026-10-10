@@ -19,6 +19,9 @@ export const TEXTURES = {
   starFull: 'star-full',
   starEmpty: 'star-empty',
   pixel: 'pixel',
+  markHeart: 'mark-heart',
+  markAngry: 'mark-angry',
+  markDrop: 'mark-drop',
 } as const;
 
 /** 9 x 9 icons for the flip indicator in the top bar. */
@@ -231,8 +234,41 @@ export function createPlaceholderTextures(scene: Phaser.Scene): void {
   pixelTexture(scene, TEXTURES.flameB, FLAME_B, flame);
   pixelTexture(scene, TEXTURES.shockwave, SHOCKWAVE_ROWS, { p: 0x6a1b9a, l: 0xb388ff, w: 0xf3e5f5 });
   pixelTexture(scene, TEXTURES.lock, LOCK_ROWS, { g: 0x9e9e9e, y: COLORS.crown, k: 0x5d4037, d: shade(COLORS.crown, 0.3) });
+  createMarkers(scene);
   createFlipIcons(scene);
   createPowerIcons(scene);
+}
+
+/** 7 x 7 mood markers that bob over creatures (see StatusMarker). */
+function createMarkers(scene: Phaser.Scene): void {
+  pixelTexture(scene, TEXTURES.markHeart, [
+    'kk.kk..',
+    'krrkrrk',
+    'krwrrrk',
+    'krrrrrk',
+    '.krrrk.',
+    '..krk..',
+    '...k...',
+  ], { k: 0x5a1020, r: COLORS.heart, w: 0xffc1cc });
+  // An anger mark, like in cartoons.
+  pixelTexture(scene, TEXTURES.markAngry, [
+    '.kk.kk.',
+    'krrkrrk',
+    'krk.krk',
+    '.k...k.',
+    'krk.krk',
+    'krrkrrk',
+    '.kk.kk.',
+  ], { k: 0x4a0e0e, r: 0xff3b30 });
+  pixelTexture(scene, TEXTURES.markDrop, [
+    '...k...',
+    '..kbk..',
+    '.kbbbk.',
+    'kbwbbbk',
+    'kbwbbbk',
+    'kbbbbbk',
+    '.kkkkk.',
+  ], { k: 0x0d3c7a, b: 0x4fc3f7, w: 0xe3f2fd });
 }
 
 function createFlipIcons(scene: Phaser.Scene): void {

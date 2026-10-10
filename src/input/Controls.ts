@@ -39,8 +39,9 @@ export class Controls {
     this.right = keys(K.RIGHT, K.D);
     // Spec: Space or W. Up arrow is added because players using the arrow keys reach for it.
     this.jump = keys(K.SPACE, K.W, K.UP);
-    this.attack = keys(K.J);
-    this.power = keys(K.K);
+    // J/K suit W A S D players; Z/C suit arrow-key players, whose right hand is on the arrows.
+    this.attack = keys(K.J, K.Z);
+    this.power = keys(K.K, K.C);
   }
 
   read(): PlayerInput {

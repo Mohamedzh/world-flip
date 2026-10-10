@@ -1,5 +1,6 @@
 // Reads the parts of a Tiled map (.tmj) that the game needs, and checks the level is complete.
 // Plain TypeScript so every level file can be validated by the unit tests.
+import { BOW } from '../config';
 import type { Point } from '../systems/CheckpointTracker';
 import { FLIP_STATES, isFlipState, type FlipState } from '../systems/flips';
 import type { FlipMode } from '../systems/FlipManager';
@@ -100,6 +101,8 @@ export interface LevelData {
   /** Basic enemies get tougher and faster in later worlds (spec). */
   enemyHealth: number;
   enemySpeed: number;
+  /** A plain arrow's damage (2 from World 3 on, where enemies have 4 health). */
+  arrowDamage: number;
   spawn: Point;
   /** Sorted left to right. */
   checkpoints: Point[];
@@ -170,6 +173,7 @@ export function parseLevel(map: TiledMap): LevelData {
     flipMode,
     enemyHealth: number('enemyHealth', 2),
     enemySpeed: number('enemySpeed', 1),
+    arrowDamage: number('arrowDamage', BOW.damage),
     spawn: spawns[0],
     checkpoints: ofKind('checkpoint').sort((a, b) => a.x - b.x),
     crown: crowns[0],

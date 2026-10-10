@@ -45,6 +45,8 @@ writeLevel(g, new URL('../../public/assets/levels/level-4.tmj', import.meta.url)
   flipMode: 'random',
   flipOrder: 'lowGravity,colorSwap,friendFoe,upsideDown,normal',
   parTimeSec: 270,
+  flipIntervalSec: 10,
   enemyHealth: 4,
+  arrowDamage: 2,
   enemySpeed: 1.4,
 });

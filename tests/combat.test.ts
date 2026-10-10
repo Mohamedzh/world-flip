@@ -25,9 +25,9 @@ describe('weaponHitEffect', () => {
 describe('touchEffect', () => {
   const ctx = { friendsHostile: false, landingOnTop: false, stunned: false };
 
-  it('enemies hurt on touch normally, even from above', () => {
+  it('enemies hurt on touch from the side, and are stomped from above', () => {
     expect(touchEffect('enemy', ctx)).toBe('hurtHero');
-    expect(touchEffect('enemy', { ...ctx, landingOnTop: true })).toBe('hurtHero');
+    expect(touchEffect('enemy', { ...ctx, landingOnTop: true })).toBe('stomp');
   });
 
   it('during the friend/foe swap, enemies are harmless and bounceable', () => {

@@ -30,7 +30,8 @@ export function weaponHitEffect(target: CreatureKind, damage: number, ctx: HitCo
 }
 
 /** What happens when the hero touches a creature. */
-export type TouchEffect = 'hurtHero' | 'bounce' | 'spring' | 'none';
+/** stomp: landed on a normal enemy's head, Mario-style: the hero bounces and the enemy takes 1 damage. */
+export type TouchEffect = 'hurtHero' | 'bounce' | 'stomp' | 'spring' | 'none';
 
 export interface TouchContext {
   friendsHostile: boolean;
@@ -47,7 +48,8 @@ export function touchEffect(target: CreatureKind, ctx: TouchContext): TouchEffec
     if (ctx.frozen) return 'none';
     // During the friend/foe swap, enemies are harmless and can be bounced on.
     if (ctx.friendsHostile) return ctx.landingOnTop ? 'bounce' : 'none';
-    return 'hurtHero';
+    // Kids expect to jump on enemies (play-testing): from above it's a stomp, from the side it hurts.
+    return ctx.landingOnTop ? 'stomp' : 'hurtHero';
   }
   if (ctx.friendsHostile) return ctx.stunned ? 'none' : 'hurtHero';
   // A friendly bounce mushroom launches the hero when landed on.

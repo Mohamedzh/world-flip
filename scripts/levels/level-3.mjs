@@ -50,6 +50,8 @@ writeLevel(g, new URL('../../public/assets/levels/level-3.tmj', import.meta.url)
   theme: 'mountain',
   flipOrder: 'upsideDown,colorSwap,lowGravity,friendFoe,normal',
   parTimeSec: 240,
+  flipIntervalSec: 12,
   enemyHealth: 4,
+  arrowDamage: 2,
   enemySpeed: 1.3,
 });

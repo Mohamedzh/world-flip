@@ -1,6 +1,6 @@
 // The world map: the five worlds along a path. Played worlds show their best stars; locked worlds
 // show a padlock. The castle opens once Sky is finished and all four powers are earned (spec),
-// shown as four slots under it.
+// shown as four slots under it. Keyboard or mouse.
 import Phaser from 'phaser';
 import { music } from '../audio/music';
 import { sfx } from '../audio/sfx';
@@ -84,6 +84,15 @@ export class MapScene extends Phaser.Scene {
         else this.add.image(x, y, TEXTURES.lock).setScale(1.5);
       }
       this.add.text(x, y + (level.needsAllPowers ? 48 : 28), level.name, TEXT).setOrigin(0.5);
+      // Click (or tap) a world to play it; hovering selects it.
+      this.add
+        .zone(x, y - (level.needsAllPowers ? 6 : 0), 56, level.needsAllPowers ? 76 : 56)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => this.selected !== i && this.select(i))
+        .on('pointerdown', () => {
+          this.select(i);
+          this.play();
+        });
       const best = save.levels[level.id]?.bestStars ?? 0;
       if (open) {
         for (let s = 0; s < 3; s++) {
@@ -93,7 +102,7 @@ export class MapScene extends Phaser.Scene {
     });
 
     this.info = this.add.text(VIEW.width / 2, VIEW.height - 34, '', TEXT).setOrigin(0.5);
-    this.add.text(VIEW.width / 2, VIEW.height - 14, 'Arrows: choose a world    Enter: play    Esc: menu', TEXT).setOrigin(0.5);
+    this.add.text(VIEW.width / 2, VIEW.height - 14, 'Arrows or mouse: choose a world    Enter or click: play    Esc: menu', TEXT).setOrigin(0.5);
 
     // Start on the world just played, or the furthest one open.
     const focus = LEVELS.findIndex((l) => l.id === data.focus);

@@ -21,12 +21,13 @@ type Page = 'main' | 'controls' | 'about';
 const CONTROLS: [string, string][] = [
   ['Move', 'Arrow keys or A / D'],
   ['Jump', 'Space, W or Up (hold for higher)'],
-  ['Attack', 'J (Ranger: hold to charge)'],
-  ['Use power', 'Tap K'],
-  ['Powered attack', 'Hold K, then press J'],
+  ['Attack', 'J or Z (Ranger: hold to charge)'],
+  ['Use power', 'Tap K or C'],
+  ['Powered attack', 'Hold K + press J  (or C + Z)'],
   ['Switch power', 'L, or 1 2 3 4'],
   ['Double jump, glide', 'Jump in the air (with Wind)'],
-  ['Pause', 'Esc  (then Q: back to the map)'],
+  ['Pause', 'Esc or the pause button'],
+  ['While paused', 'R: restart level   Q: world map'],
   ['Music on/off', 'M (or the speaker buttons)'],
   ['Sound effects on/off', 'X'],
 ];
@@ -92,7 +93,7 @@ export class MenuScene extends Phaser.Scene {
     } else if (page === 'controls') {
       this.text(cx, 24, 'CONTROLS', { fontSize: '18px' });
       CONTROLS.forEach(([action, keys], i) => {
-        const y = 52 + i * 20;
+        const y = 50 + i * 18;
         this.content.push(this.add.text(cx - 10, y, action, { ...TEXT, align: 'right' }).setOrigin(1, 0.5));
         this.content.push(this.add.text(cx + 10, y, keys, { ...TEXT, color: '#fff176', align: 'left' }).setOrigin(0, 0.5));
       });

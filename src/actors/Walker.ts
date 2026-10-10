@@ -8,6 +8,8 @@ import type { Point } from '../systems/CheckpointTracker';
 import type { GravityDir } from '../systems/flips';
 import type { ActorWorld } from './ActorWorld';
 import { feetY, onFloor, orientToGravity } from './gravity';
+import { StatusMarker } from './StatusMarker';
+import { TEXTURES } from '../gfx/placeholderTextures';
 
 export interface WalkerStyle {
   look: Look;
@@ -45,6 +47,8 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   protected stunnedUntil = 0;
   private frozenUntil = 0;
   private slowedUntil = 0;
+  /** A heart over calm enemies, so it is clear they are friendly for now. */
+  private calmMarker?: StatusMarker;
 
   constructor(
     scene: Phaser.Scene,
@@ -84,6 +88,8 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
 
   setCalm(calm: boolean): void {
     this.calm = calm;
+    if (calm) this.calmMarker ??= new StatusMarker(this, TEXTURES.markHeart, () => this.gravityDir);
+    if (this.calmMarker) this.calmMarker.visible = calm && !this.defeated;
     this.restoreTint();
   }
 
@@ -181,6 +187,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   /** Removes the enemy with a little poof. */
   defeat(): void {
     this.defeated = true;
+    if (this.calmMarker) this.calmMarker.visible = false;
     this.body.enable = false;
     this.stop();
     this.scene.tweens.add({

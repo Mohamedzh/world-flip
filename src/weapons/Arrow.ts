@@ -27,11 +27,13 @@ export class Arrow extends Phaser.Physics.Arcade.Image {
     dir: 1 | -1,
     charged: boolean,
     readonly element: Element | null = null,
+    /** A plain arrow's damage; later worlds have tougher enemies, so arrows hit harder there. */
+    baseDamage: number = BOW.damage,
   ) {
     super(scene, x, y, TEXTURES.arrow);
     scene.add.existing(this);
     scene.physics.add.existing(this);
-    this.damage = charged ? BOW.chargedDamage : BOW.damage;
+    this.damage = charged ? baseDamage + BOW.chargedBonus : baseDamage;
     this.piercesLeft = charged ? BOW.chargedPierce : 0;
     this.startX = x;
     this.bornAt = scene.time.now;

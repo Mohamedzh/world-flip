@@ -4,6 +4,8 @@ import { sfx } from '../audio/sfx';
 import { TILE } from '../config';
 import { SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import type { SeedPodSpawn } from '../level/LevelData';
+import { StatusMarker } from '../actors/StatusMarker';
+import { TEXTURES } from '../gfx/placeholderTextures';
 
 /** Leaf platforms are this many tiles wide, centered on the pod. */
 const LEAF_WIDTH = 5;
@@ -11,6 +13,8 @@ const LEAF_WIDTH = 5;
 export class SeedPod extends Phaser.Physics.Arcade.Image {
   declare body: Phaser.Physics.Arcade.Body;
   grown = false;
+  /** A water drop over the pod: a hint that Water makes it grow. */
+  readonly marker: StatusMarker;
 
   constructor(
     scene: Phaser.Scene,
@@ -21,6 +25,8 @@ export class SeedPod extends Phaser.Physics.Arcade.Image {
     scene.physics.add.existing(this, true);
     this.setOrigin(0.5, 1);
     (this.body as unknown as Phaser.Physics.Arcade.StaticBody).updateFromGameObject();
+    this.marker = new StatusMarker(this, TEXTURES.markDrop);
+    this.marker.visible = true;
     // A gentle wobble so kids notice it.
     scene.tweens.add({ targets: this, angle: { from: -6, to: 6 }, yoyo: true, repeat: -1, duration: 700 });
   }
@@ -75,6 +81,7 @@ export class SeedPods {
   grow(pod: SeedPod): void {
     if (pod.grown) return;
     pod.grown = true;
+    pod.marker.visible = false;
     sfx.grow();
     const col = Math.floor(pod.spawn.x / TILE);
     const baseRow = Math.round(pod.spawn.y / TILE) - 1; // the tile the pod sits in

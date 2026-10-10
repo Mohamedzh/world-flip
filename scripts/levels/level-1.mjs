@@ -50,4 +50,5 @@ writeLevel(g, new URL('../../public/assets/levels/level-1.tmj', import.meta.url)
   theme: 'meadow',
   flipOrder: 'lowGravity,colorSwap,normal',
   parTimeSec: 180,
+  flipIntervalSec: 15,
 });

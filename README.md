@@ -1,6 +1,6 @@
 # World Flip
 
-A side-scrolling browser platformer where the world's rules flip every 10 seconds.
+A side-scrolling browser platformer where the world's rules flip every 10 to 15 seconds.
 The full design is in the game design spec; this repo builds it milestone by milestone.
 
 **Status:** milestone 5, the whole game. Main menu, five worlds on the world map (Meadow, Lake, Mountain, Sky, and
@@ -25,15 +25,16 @@ test level with every flip, creature and power puzzle close together (press P th
 | --- | --- |
 | Move | Arrow keys or A / D |
 | Jump | Space, W or Up (hold for a higher jump) |
-| Attack | J (Ranger: hold 0.8 s for a charged shot) |
-| Use power | Tap K |
-| Power up the weapon | Hold K and press J |
+| Attack | J or Z (Ranger: hold 0.8 s for a charged shot) |
+| Stomp | Land on an enemy: 1 damage and a bounce |
+| Use power | Tap K or C |
+| Power up the weapon | Hold K and press J (or hold C and press Z) |
 | Switch power | L, or 1-4 (fire, water, snow, wind) |
-| Double jump and glide | Jump again in mid-air while Wind is the active power; hold jump to glide |
-| Pause | Esc (then Q to go back to the map) |
+| Double jump and glide | Once you have Wind: jump again in mid-air (any active power); hold jump to glide |
+| Pause | Esc or the pause button (top right); then R restarts the level, Q goes to the map, or click |
 | Music on/off | M, or the speaker-with-note button (top right) |
 | Sound effects on/off | X, or the speaker-with-waves button (top right) |
-| World map, hero select | Arrow keys, Enter; Esc on hero select goes back to the map |
+| World map, hero select | Arrow keys and Enter, or the mouse; Esc on hero select goes back to the map |
 
 Debug keys, only in `npm run dev`:
 
@@ -61,8 +62,12 @@ To start over, clear the save in the browser console: `localStorage.removeItem('
 
 ## World flips
 
-Every 10 seconds the world's rules flip, with a 3-second warning (chime, screen shimmer, next flip's icon in the top bar).
-(The spec said 50 s; play-testing showed quicker flips are more fun. Change `FLIPS.intervalMs` in `src/config.ts`.)
+The world's rules flip every 15 s in World 1, 13 s in World 2, 12 s in World 3, 10 s in World 4 and 20 s in the castle
+(each level's `flipIntervalSec`; the spec said 50 s, but play-testing showed quicker flips are more fun).
+A 3-second warning names the next flip in the top bar ("Next: Color swap in 3") with a chime and a soft shimmer.
+The big banner explains each flip only the first time it happens in a level; after that the top bar flashes.
+Helpers make the rules visible: "Solid: [color]" under the hearts, a heart over calm enemies, an angry mark over
+biting mushrooms, a water drop over seed pods, and the color blocks blink when they swap.
 Each world opens with its new flip, then also cycles every flip from the worlds before it; `npm test` checks this.
 
 | Flip | What changes |
@@ -90,7 +95,7 @@ Each world's guardian drops one power; powers are kept forever once earned. Char
 Combos: **Water then Snow** (a wave leaves water across a gap; freeze it into an ice bridge),
 **Fire plus Wind** (gust a fireball to split it into three), **Snow then Fire** (fire shatters a frozen enemy for double damage).
 
-From World 3, some enemies throw slow pellets; the Knight's swing knocks them back at their thrower.
+From World 3, enemies have 4 health, so plain arrows do 2 damage there (charged: 3). Some enemies throw slow pellets; the Knight's swing knocks them back at their thrower.
 - **Stars:** 1 for reaching the crown, 2 under the level's par time, 3 under par with no hearts lost.
 - **Saving:** powers, best stars and times, unlocked levels and the chosen hero are kept in the browser's localStorage.
 
@@ -134,8 +139,8 @@ They can then be opened in Tiled. Each level needs:
   (in the castle the crown stays hidden until the King is beaten). Place each point on the floor where the thing should stand.
 - Map properties (Map > Map Properties): `name`, `theme` (`meadow`, `lake`, `mountain` or `sky`), `parTimeSec`,
   `flipOrder` (comma separated, from `lowGravity`, `colorSwap`, `friendFoe`, `upsideDown`, `normal`), and optionally
-  `flipMode` (`fixed` or `random`), `flipIntervalSec` (seconds between flips, default 10), and `enemyHealth` and
-  `enemySpeed` for tougher worlds. Themes also include `castle`.
+  `flipMode` (`fixed` or `random`), `flipIntervalSec` (seconds between flips, default 10), `enemyHealth`,
+  `enemySpeed` and `arrowDamage` for tougher worlds. Themes also include `castle`.
 - A level that has `upsideDown` in its flips needs a ceiling wherever the hero can be.
 
 If you edit a level by hand in Tiled, delete its script in `scripts/levels/` so `npm run gen:levels` can't overwrite it.
@@ -148,4 +153,4 @@ The Knight and Ranger sprites (`public/assets/heroes/`) were drawn by Mariam Moh
 jump, fall and attack frames are built from that art.
 
 Music: tracks by Juhani Junkala, CC0, from OpenGameArt.org ("4 Chiptunes (Adventure)" and "JRPG Music Pack #1 [Exploration]").
-See `public/assets/music/CREDITS.txt` for which track plays where. Sound effects are synthesized in the browser (`src/audio/sfx.ts`).
+See `public/assets/music/CREDITS.txt` for which track plays where. Each track is Ogg with an MP3 copy for Safari. Sound effects are synthesized in the browser (`src/audio/sfx.ts`).

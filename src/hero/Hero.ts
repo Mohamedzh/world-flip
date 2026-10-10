@@ -32,6 +32,8 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
   private maxFallSpeed: number = PHYSICS.maxFallSpeed;
   /** Wind: glide time left after a double jump (spec: 2 s). */
   private glideMs = 0;
+  /** The Wind double jump has been used in this jump; it comes back on landing. */
+  private airJumpUsed = false;
   private gravityDir: GravityDir = 1;
   private readonly powerTrigger = new PowerTrigger();
   /** Where the body sits in the frame in normal gravity: centered, feet on the frame bottom. */
@@ -84,7 +86,7 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(input: PlayerInput, deltaMs: number, now: number): void {
-    this.move(input, deltaMs, now);
+    this.move(input, deltaMs);
     this.animate(now);
 
     // Tap K to cast; hold K and press J to charge the weapon instead (both use the power's cooldown).
@@ -102,13 +104,16 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     this.weapon.update(attack, now);
   }
 
-  private move(input: PlayerInput, deltaMs: number, now: number): void {
+  private move(input: PlayerInput, deltaMs: number): void {
     const dt = deltaMs / 1000;
     const grounded = this.onGround;
 
     this.coyoteMs = grounded ? HERO.coyoteMs : this.coyoteMs - deltaMs;
     this.jumpBufferMs = input.jumpPressed ? HERO.jumpBufferMs : this.jumpBufferMs - deltaMs;
-    if (grounded) this.glideMs = 0;
+    if (grounded) {
+      this.glideMs = 0;
+      this.airJumpUsed = false;
+    }
 
     if (this.controlLockMs > 0) {
       this.controlLockMs -= deltaMs;
@@ -127,8 +132,10 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
         this.jumpBufferMs = 0;
         this.coyoteMs = 0;
         this.rising = true;
-      } else if (input.jumpPressed && !grounded && this.powers.active === 'wind' && this.powers.useActive(now)) {
-        // Wind: a second jump in mid-air (it uses Wind's cooldown), then holding jump glides.
+      } else if (input.jumpPressed && !grounded && !this.airJumpUsed && this.powers.has('wind')) {
+        // Wind, once earned: one second jump in mid-air per jump, then holding jump glides. It works
+        // whichever power is active and doesn't touch Wind's cooldown, so the gust stays ready.
+        this.airJumpUsed = true;
         this.setFallSpeed(-WIND.doubleJumpVelocity);
         sfx.doubleJump();
         this.jumpBufferMs = 0;
@@ -231,6 +238,7 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     this.rising = false;
     this.controlLockMs = 0;
     this.glideMs = 0;
+    this.airJumpUsed = false;
     this.weapon.reset();
     this.powerTrigger.reset();
     this.attackUntil = 0;

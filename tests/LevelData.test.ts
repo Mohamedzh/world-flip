@@ -158,13 +158,19 @@ describe('parseLevel', () => {
 
   it('defaults flip mode, enemy health and speed; rejects a bad theme or flip mode', () => {
     const lvl = parseLevel(base(minimal));
-    expect([lvl.flipMode, lvl.enemyHealth, lvl.enemySpeed]).toEqual(['fixed', 2, 1]);
+    expect([lvl.flipMode, lvl.enemyHealth, lvl.enemySpeed, lvl.arrowDamage]).toEqual(['fixed', 2, 1, 1]);
     const badTheme = base(minimal);
     badTheme.properties = badTheme.properties!.map((p) => (p.name === 'theme' ? { ...p, value: 'moon' } : p));
     expect(() => parseLevel(badTheme)).toThrow(/theme/);
     const badMode = base(minimal);
     badMode.properties!.push({ name: 'flipMode', type: 'string', value: 'shuffle' });
     expect(() => parseLevel(badMode)).toThrow(/flipMode/);
+  });
+
+  it('arrows hit harder from World 3 on, where enemies are tougher', () => {
+    expect(parseLevel(load('level-1.tmj')).arrowDamage).toBe(1);
+    expect(parseLevel(load('level-3.tmj')).arrowDamage).toBe(2);
+    expect(parseLevel(load('level-4.tmj')).arrowDamage).toBe(2);
   });
 
   it('reads seed pods with their height (default 3), fire walls and throwers', () => {

@@ -7,6 +7,8 @@ import { SHEETS, TILE_FRAMES } from '../gfx/sprites';
 import type { Point } from '../systems/CheckpointTracker';
 import type { GravityDir } from '../systems/flips';
 import { onFloor, orientToGravity } from './gravity';
+import { StatusMarker } from './StatusMarker';
+import { TEXTURES } from '../gfx/placeholderTextures';
 
 const BODY_OFFSET_Y = 7;
 
@@ -18,6 +20,8 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
   private stunnedUntil = 0;
   private nextHopAt = 0;
   private gravityDir: GravityDir = 1;
+  /** An angry mark while hostile. */
+  private readonly angry: StatusMarker;
 
   constructor(scene: Phaser.Scene, at: Point) {
     super(scene, at.x, at.y, SHEETS.tiles, TILE_FRAMES.mushroom);
@@ -25,6 +29,7 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
     this.setOrigin(0.5, 1);
     this.body.setSize(12, 11, false).setOffset(3, BODY_OFFSET_Y);
+    this.angry = new StatusMarker(this, TEXTURES.markAngry, () => this.gravityDir);
   }
 
   get isHostile(): boolean {
@@ -37,6 +42,7 @@ export class Mushroom extends Phaser.Physics.Arcade.Sprite {
 
   setHostile(hostile: boolean, now: number): void {
     this.hostile = hostile;
+    this.angry.visible = hostile;
     this.stunnedUntil = 0;
     this.restoreTint();
     this.nextHopAt = now + 400;

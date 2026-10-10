@@ -30,6 +30,11 @@
    "name": "parTimeSec",
    "type": "int",
    "value": 180
+  },
+  {
+   "name": "flipIntervalSec",
+   "type": "int",
+   "value": 15
   }
  ],
  "tilesets": [

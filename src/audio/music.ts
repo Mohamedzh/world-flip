@@ -1,19 +1,14 @@
 // Background music: one track per world, plus the menu and the ending.
 // Tracks by Juhani Junkala, CC0 (see public/assets/music/CREDITS.txt).
 // They stream from files (no long loading at the start) and loop; switching tracks fades.
+// Each track is Ogg Vorbis, with an MP3 copy for Safari.
 import { soundSettings } from './settings';
 
 export type Tune = 'menu' | 'meadow' | 'lake' | 'mountain' | 'sky' | 'castle' | 'ending';
 
-const TRACKS: Record<Tune, string> = {
-  menu: 'assets/music/menu.ogg',
-  meadow: 'assets/music/meadow.ogg',
-  lake: 'assets/music/lake.ogg',
-  mountain: 'assets/music/mountain.ogg',
-  sky: 'assets/music/sky.ogg',
-  castle: 'assets/music/castle.ogg',
-  ending: 'assets/music/ending.ogg',
-};
+/** Ogg where the browser plays it (smaller files); MP3 copies for Safari, which doesn't. */
+const FORMAT = typeof Audio !== 'undefined' && new Audio().canPlayType('audio/ogg; codecs=vorbis') ? 'ogg' : 'mp3';
+const trackUrl = (tune: Tune) => `assets/music/${tune}.${FORMAT}`;
 
 /** Music volume (0-1): under the sound effects. */
 const VOLUME = 0.45;
@@ -61,7 +56,7 @@ class MusicPlayer {
   }
 
   private start(tune: Tune): void {
-    const a = new Audio(TRACKS[tune]);
+    const a = new Audio(trackUrl(tune));
     a.loop = true;
     a.volume = 0;
     this.audio = a;

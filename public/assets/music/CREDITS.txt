@@ -13,3 +13,6 @@ Music by Juhani Junkala (https://juhanijunkala.com/), released under CC0
 
 From the author's notes in both packs: "These music tracks have been released under CC0 creative
 commons license. You can do anything you want with these tunes."
+
+Each .mp3 is a copy of the .ogg with the same name (converted with ffmpeg), for browsers that
+cannot play Ogg Vorbis, such as Safari.

@@ -5,7 +5,7 @@ import { sfx } from '../audio/sfx';
 import { COLORS, VIEW } from '../config';
 import { FLIP_ICONS, POWER_ICONS, TEXTURES } from '../gfx/placeholderTextures';
 import { HERO_LOOKS, SHEETS, TILE_FRAMES } from '../gfx/sprites';
-import { FLIP_INFO } from '../systems/flips';
+import type { FlipState } from '../systems/flips';
 import { ELEMENTS } from '../systems/powers';
 import { formatTime } from '../systems/math';
 import type { GameScene, HudState, LevelResult } from './GameScene';
@@ -23,6 +23,18 @@ const TEXT: Phaser.Types.GameObjects.Text.TextStyle = {
 const HELP_MS = 8000;
 const HEART_SPACING = 15;
 const POWER_SLOT = 17;
+/** The flip bar sits centered in the free space between the power row and the timer. */
+const FLIP_BAR_CENTER = 296;
+/** The color block colors, matching the tiles and the color swap icon. */
+const SOLID_COLORS = { orange: 0xf28c28, blue: 0x3b82f6 } as const;
+/** Short flip names for the top bar (the full names appear in the big banner). */
+const SHORT_FLIP: Record<FlipState, string> = {
+  normal: 'Normal',
+  lowGravity: 'Low gravity',
+  colorSwap: 'Color swap',
+  friendFoe: 'Friend/foe',
+  upsideDown: 'Upside-down',
+};
 
 export class HudScene extends Phaser.Scene {
   private hearts: Phaser.GameObjects.Image[] = [];
@@ -31,6 +43,9 @@ export class HudScene extends Phaser.Scene {
   private powerIcons: Phaser.GameObjects.Image[] = [];
   private powerCooldown!: Phaser.GameObjects.Rectangle;
   private powerMarker!: Phaser.GameObjects.Rectangle;
+  /** Key hints on the power row: the number that picks each power, and "K" for using it. */
+  private powerDigits: Phaser.GameObjects.Text[] = [];
+  private powerKeyHint!: Phaser.GameObjects.Text;
   private powerX = 0;
   private timeText!: Phaser.GameObjects.Text;
   private flipIcon!: Phaser.GameObjects.Image;
@@ -42,8 +57,13 @@ export class HudScene extends Phaser.Scene {
   private guardianBar!: Phaser.GameObjects.Rectangle;
   private shieldIcons: Phaser.GameObjects.Image[] = [];
   private shimmer!: Phaser.GameObjects.Rectangle;
+  /** "Solid: [block]" under the hearts, so it is always clear which color can be stood on. */
+  private solidLabel!: Phaser.GameObjects.Text;
+  private solidSwatch!: Phaser.GameObjects.Rectangle;
+  private shownSolid: HudState['solidColor'] = null;
   private bannerText!: Phaser.GameObjects.Text;
-  private pausedText!: Phaser.GameObjects.Text;
+  private pauseMenu!: Phaser.GameObjects.Container;
+  private pauseButton!: Phaser.GameObjects.Container;
   private helpText!: Phaser.GameObjects.Text;
   private resultPanel: Phaser.GameObjects.Container | null = null;
 
@@ -74,9 +94,21 @@ export class HudScene extends Phaser.Scene {
     );
     this.powerCooldown = this.add.rectangle(0, 2, 15, 15, 0x10141c, 0.7).setOrigin(0, 0);
     this.powerMarker = this.add.rectangle(0, 18, 15, 2, COLORS.crown).setOrigin(0, 0);
+    const tiny = { ...TEXT, fontSize: '7px', strokeThickness: 2 };
+    this.powerDigits = ELEMENTS.map((_, i) =>
+      this.add.text(this.powerX + i * POWER_SLOT + 15, 18, String(i + 1), tiny).setOrigin(1, 1).setVisible(false),
+    );
+    this.powerKeyHint = this.add.text(0, 4, 'K', { ...TEXT, color: '#fff176' }).setVisible(false);
 
     // The time sits left of the music and sound buttons in the top-right corner.
     this.timeText = this.add.text(VIEW.width - 44, 4, '', TEXT).setOrigin(1, 0);
+
+    this.solidLabel = this.add.text(3, 22, 'Solid:', { ...TEXT, fontSize: '8px', strokeThickness: 2 }).setVisible(false);
+    this.solidSwatch = this.add
+      .rectangle(this.solidLabel.x + this.solidLabel.width + 7, 27, 10, 10, SOLID_COLORS.orange)
+      .setStrokeStyle(1, 0x10141c)
+      .setVisible(false);
+    this.shownSolid = null;
 
     // Current flip in the middle of the top bar: [icon] Normal 0:47.
     // During the warning: [icon] Normal >> [next icon] in 3, flashing.
@@ -94,11 +126,10 @@ export class HudScene extends Phaser.Scene {
 
     const cy = VIEW.height / 2;
     this.bannerText = this.add.text(cx, cy - 40, '', { ...TEXT, fontSize: '14px', align: 'center' }).setOrigin(0.5);
-    this.pausedText = this.add
-      .text(cx, cy, 'PAUSED\n\nEsc: keep playing\nQ: back to the map', { ...TEXT, fontSize: '14px', align: 'center' })
-      .setOrigin(0.5);
+    this.pauseMenu = this.createPauseMenu(cx, cy);
+    this.pauseButton = this.createPauseButton();
     this.helpText = this.add
-      .text(cx, VIEW.height - 8, 'Move: Arrows/A D   Jump: Space/W   Attack: J   Power: K   Pause: Esc', TEXT)
+      .text(cx, VIEW.height - 8, 'Move: Arrows/A D  Jump: Space/W  Attack: J or Z  Power: K or C  Pause: Esc', TEXT)
       .setOrigin(0.5, 1);
     this.time.delayedCall(HELP_MS, () => this.tweens.add({ targets: this.helpText, alpha: 0, duration: 600 }));
     this.resultPanel = null;
@@ -112,10 +143,14 @@ export class HudScene extends Phaser.Scene {
     this.livesText.setText(`x${s.lives}`);
     this.timeText.setText(formatTime(s.elapsedMs));
     this.bannerText.setText(s.banner ?? '');
-    this.pausedText.setVisible(s.playState === 'paused');
+    this.pauseMenu.setVisible(s.playState === 'paused');
+    // The pause button sits just left of the time; it is hidden once the level is won.
+    this.pauseButton.setVisible(s.playState === 'playing' || s.playState === 'paused');
+    this.pauseButton.setX(this.timeText.x - this.timeText.width - 19);
     this.updatePowers(s.powers);
     this.updateGuardian(s.guardian);
     this.updateFlipBar(s.flip, time);
+    this.updateSolid(s.solidColor);
     if (s.result && !this.resultPanel) {
       this.resultPanel = this.showResult(s.result);
       this.helpText.setVisible(false);
@@ -123,7 +158,14 @@ export class HudScene extends Phaser.Scene {
   }
 
   private updatePowers(p: HudState['powers']): void {
-    ELEMENTS.forEach((e, i) => this.powerIcons[i].setVisible(p.owned.includes(e)).setAlpha(e === p.active ? 1 : 0.55));
+    ELEMENTS.forEach((e, i) => {
+      const owned = p.owned.includes(e);
+      this.powerIcons[i].setVisible(owned).setAlpha(e === p.active ? 1 : 0.55);
+      this.powerDigits[i].setVisible(owned);
+    });
+    // "K" sits after the last owned power, as a reminder of the key that uses it.
+    const last = ELEMENTS.reduce((max, e, i) => (p.owned.includes(e) ? i : max), -1);
+    this.powerKeyHint.setVisible(last >= 0).setX(this.powerX + (last + 1) * POWER_SLOT);
     const active = p.active ? ELEMENTS.indexOf(p.active) : -1;
     this.powerMarker.setVisible(active >= 0);
     this.powerCooldown.setVisible(active >= 0 && p.readiness < 1);
@@ -132,6 +174,53 @@ export class HudScene extends Phaser.Scene {
     this.powerMarker.setX(x);
     // The overlay covers the part that is still recharging, shrinking from the top.
     this.powerCooldown.setPosition(x, 2 + 15 * p.readiness).setSize(15, 15 * (1 - p.readiness));
+  }
+
+  /** Paused: a small panel with buttons (or keys Esc, R, Q). */
+  private createPauseMenu(cx: number, cy: number): Phaser.GameObjects.Container {
+    const menu = this.add.container(cx, cy).setVisible(false);
+    menu.add(this.add.rectangle(0, 0, 190, 118, 0x10141c, 0.85).setStrokeStyle(2, COLORS.crown));
+    menu.add(this.add.text(0, -40, 'PAUSED', { ...TEXT, fontSize: '14px' }).setOrigin(0.5));
+    const options: [string, () => void][] = [
+      ['Keep playing  (Esc)', () => this.gameScene().togglePause()],
+      ['Restart level  (R)', () => this.gameScene().restartLevel()],
+      ['World map  (Q)', () => this.gameScene().backToMap()],
+    ];
+    options.forEach(([label, action], i) => {
+      const t = this.add.text(0, -12 + i * 20, label, TEXT).setOrigin(0.5);
+      t.setInteractive({ useHandCursor: true })
+        .on('pointerover', () => t.setColor('#fff176'))
+        .on('pointerout', () => t.setColor('#ffffff'))
+        .on('pointerdown', () => {
+          sfx.menuSelect();
+          t.setColor('#ffffff');
+          action();
+        });
+      menu.add(t);
+    });
+    return menu;
+  }
+
+  /** A pause button in the top bar, styled like the speaker buttons beside it. */
+  private createPauseButton(): Phaser.GameObjects.Container {
+    const plate = this.add.rectangle(0, 3, 15, 15, 0x10141c, 0.55).setOrigin(0, 0).setStrokeStyle(1, 0xffffff, 0.4);
+    const bars = [this.add.rectangle(4, 6, 2, 9, 0xffffff).setOrigin(0, 0), this.add.rectangle(9, 6, 2, 9, 0xffffff).setOrigin(0, 0)];
+    plate
+      .setInteractive({ useHandCursor: true })
+      .on('pointerover', () => plate.setFillStyle(0x10141c, 0.85))
+      .on('pointerout', () => plate.setFillStyle(0x10141c, 0.55))
+      .on('pointerdown', () => this.gameScene().togglePause());
+    return this.add.container(0, 0, [plate, ...bars]);
+  }
+
+  private updateSolid(solid: HudState['solidColor']): void {
+    this.solidLabel.setVisible(solid !== null);
+    this.solidSwatch.setVisible(solid !== null);
+    if (solid === null || solid === this.shownSolid) return;
+    const changed = this.shownSolid !== null;
+    this.shownSolid = solid;
+    this.solidSwatch.setFillStyle(SOLID_COLORS[solid]);
+    if (changed) this.tweens.add({ targets: this.solidSwatch, scale: { from: 1.8, to: 1 }, duration: 350, ease: 'Back.out' });
   }
 
   private updateGuardian(guardian: HudState['guardian']): void {
@@ -148,31 +237,41 @@ export class HudScene extends Phaser.Scene {
     this.guardianBar.setSize(Math.max(0, 118 * guardian.health), 3);
   }
 
+  /**
+   * The flip bar, in words kids can read:
+   *   between flips:  [icon] Low gravity - next flip in 7     (just "Next flip in 7" when Normal)
+   *   warning:        Next: [icon] Color swap in 3            (flashing, over a soft shimmer)
+   * Right after a flip the bar pops, since the big banner only explains a flip the first time.
+   */
   private updateFlipBar(flip: HudState['flip'], time: number): void {
-    const label = FLIP_INFO[flip.state].label;
-    this.flipIcon.setTexture(FLIP_ICONS[flip.state]);
+    const seconds = Math.ceil(flip.msUntilFlip / 1000);
     this.nextIcon.setVisible(flip.warning);
     this.nextText.setVisible(flip.warning);
+    this.flipIcon.setVisible(!flip.warning);
     if (flip.warning) {
       const color = Math.floor(time / 200) % 2 ? '#fff176' : '#ffffff';
-      this.flipText.setText(`${label} >>`).setColor(color);
+      this.flipText.setText('Next:').setColor(color);
       this.nextIcon.setTexture(FLIP_ICONS[flip.next]);
-      this.nextText.setText(`in ${Math.ceil(flip.msUntilFlip / 1000)}`).setColor(color);
-      this.shimmer.setFillStyle(0xffffff, 0.06 + 0.06 * Math.sin(time / 60));
+      this.nextText.setText(`${SHORT_FLIP[flip.next]} in ${seconds}`).setColor(color);
+      this.shimmer.setFillStyle(0xffffff, 0.03 + 0.03 * Math.sin(time / 60));
     } else {
-      this.flipText.setText(`${label} ${formatTime(flip.msUntilFlip)}`).setColor('#ffffff');
+      this.flipIcon.setTexture(FLIP_ICONS[flip.state]);
+      const label = flip.state === 'normal' ? 'Next flip in' : `${SHORT_FLIP[flip.state]} · flip in`;
+      this.flipText.setText(`${label} ${seconds}`).setColor(flip.sinceFlipMs < 1500 ? '#fff176' : '#ffffff');
       this.shimmer.setFillStyle(0xffffff, 0);
     }
+    // A short pop right after a flip.
+    const pop = flip.sinceFlipMs < 400 ? 1 + 0.3 * (1 - flip.sinceFlipMs / 400) : 1;
+    this.flipIcon.setScale(pop);
     // Lay the pieces out left to right, centered on the screen.
     const gap = 4;
-    const parts: { obj: Phaser.GameObjects.Image | Phaser.GameObjects.Text; w: number }[] = [
-      { obj: this.flipIcon, w: this.flipIcon.width },
-      { obj: this.flipText, w: this.flipText.width },
-    ];
+    const parts: { obj: Phaser.GameObjects.Image | Phaser.GameObjects.Text; w: number }[] = [];
+    if (!flip.warning) parts.push({ obj: this.flipIcon, w: this.flipIcon.width });
+    parts.push({ obj: this.flipText, w: this.flipText.width });
     if (flip.warning) {
       parts.push({ obj: this.nextIcon, w: this.nextIcon.width }, { obj: this.nextText, w: this.nextText.width });
     }
-    let x = (VIEW.width - parts.reduce((sum, p) => sum + p.w + gap, -gap)) / 2;
+    let x = FLIP_BAR_CENTER - parts.reduce((sum, p) => sum + p.w + gap, -gap) / 2;
     for (const p of parts) {
       p.obj.setX(x);
       x += p.w + gap;

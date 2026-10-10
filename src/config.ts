@@ -75,7 +75,8 @@ export const BOW = {
   cooldownMs: 500,
   /** Hold attack this long for a charged shot. */
   chargeMs: 800,
-  chargedDamage: 2,
+  /** A charged arrow does this much more than a plain one. */
+  chargedBonus: 1,
   /** A charged arrow passes through this many enemies before stopping. */
   chargedPierce: 1,
   speed: 320,
@@ -238,6 +239,9 @@ export const ENEMY = {
   hitFlashMs: 90,
   /** Bounce when landing on a harmless enemy during the friend/foe swap. */
   calmBounceVelocity: 260,
+  /** Stomping an enemy's head: a bounce, and this much damage. */
+  stompBounceVelocity: 300,
+  stompDamage: 1,
 } as const;
 
 export const FRIEND = {

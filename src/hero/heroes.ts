@@ -48,26 +48,26 @@ export const HERO_INFO: Record<HeroKind, { name: string; look: HeroLook; lines: 
   ranger: {
     name: 'Ranger',
     look: HERO_LOOKS.ranger,
-    lines: ['Bow and arrows', 'Safe from far away', 'Hold J to charge'],
+    lines: ['Bow and arrows', 'Safe from far away', 'Hold attack to charge'],
   },
 };
 
 /** How each power works, and with each hero's weapon, shown when the power is earned. */
 export const POWER_HINT: Record<Element, Record<HeroKind, string>> = {
   fire: {
-    knight: 'Tap K: fireball\nHold K + press J: flaming swing',
-    ranger: 'Tap K: fireball\nHold K + press J: fire arrow',
+    knight: 'Tap K or C: fireball\nHold K + J (or C + Z): flaming swing',
+    ranger: 'Tap K or C: fireball\nHold K + J (or C + Z): fire arrow',
   },
   water: {
-    knight: 'Tap K: water wave\n(pushes, grows seed pods, puts out fire)\nHold K + press J: wave slash',
-    ranger: 'Tap K: water wave\n(pushes, grows seed pods, puts out fire)\nHold K + press J: water arrow',
+    knight: 'Tap K or C: water wave\n(pushes, grows seed pods, puts out fire)\nHold K + J (or C + Z): wave slash',
+    ranger: 'Tap K or C: water wave\n(pushes, grows seed pods, puts out fire)\nHold K + J (or C + Z): water arrow',
   },
   snow: {
-    knight: 'Tap K: snowball\n(freezes enemies and water)\nHold K + press J: frost swing',
-    ranger: 'Tap K: snowball\n(freezes enemies and water)\nHold K + press J: ice arrow',
+    knight: 'Tap K or C: snowball\n(freezes enemies and water)\nHold K + J (or C + Z): frost swing',
+    ranger: 'Tap K or C: snowball\n(freezes enemies and water)\nHold K + J (or C + Z): ice arrow',
   },
   wind: {
-    knight: 'Tap K: gust\nJump in the air: double jump, hold to glide\nHold K + press J: spin attack',
-    ranger: 'Tap K: gust\nJump in the air: double jump, hold to glide\nHold K + press J: wind arrow',
+    knight: 'Tap K or C: gust\nJump in the air: double jump, hold to glide\nHold K + J (or C + Z): spin attack',
+    ranger: 'Tap K or C: gust\nJump in the air: double jump, hold to glide\nHold K + J (or C + Z): wind arrow',
   },
 };

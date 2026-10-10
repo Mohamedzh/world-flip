@@ -32,6 +32,11 @@
    "value": 210
   },
   {
+   "name": "flipIntervalSec",
+   "type": "int",
+   "value": 13
+  },
+  {
    "name": "enemyHealth",
    "type": "int",
    "value": 3

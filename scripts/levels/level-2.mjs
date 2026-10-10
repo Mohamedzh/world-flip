@@ -49,6 +49,7 @@ writeLevel(g, new URL('../../public/assets/levels/level-2.tmj', import.meta.url)
   theme: 'lake',
   flipOrder: 'friendFoe,lowGravity,colorSwap,normal',
   parTimeSec: 210,
+  flipIntervalSec: 13,
   enemyHealth: 3,
   enemySpeed: 1.15,
 });

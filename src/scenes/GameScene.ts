@@ -93,9 +93,12 @@ export interface HudState {
   elapsedMs: number;
   playState: PlayState;
   banner: string | null;
-  flip: { state: FlipState; next: FlipState; msUntilFlip: number; warning: boolean };
+  /** sinceFlipMs: time since the last flip, so the HUD can flash the flip bar when one happens. */
+  flip: { state: FlipState; next: FlipState; msUntilFlip: number; warning: boolean; sinceFlipMs: number };
   /** Owned powers, the active one, and how recharged it is (1 = ready). */
   powers: { owned: Element[]; active: Element | null; readiness: number };
+  /** Which color blocks are solid right now (null in levels without the color swap). */
+  solidColor: 'orange' | 'blue' | null;
   /** The guardian's (or the boss's) health bar, while the hero is near it; the boss also shows his shield. */
   guardian: { name: string; health: number; shield?: Element[] } | null;
   result: LevelResult | null;
@@ -143,6 +146,9 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
   private heartsLost = false;
   private result: LevelResult | null = null;
   private banner: { text: string; untilMs: number } | null = null;
+  /** Flips already explained in this level: the big banner only shows the first time (play-testing). */
+  private explainedFlips = new Set<FlipState>();
+  private lastFlipAt = -Infinity;
 
   constructor() {
     super(SCENES.game);
@@ -169,8 +175,10 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
         next: this.flips.next,
         msUntilFlip: this.flips.msUntilFlip,
         warning: this.flips.warningActive,
+        sinceFlipMs: this.time.now - this.lastFlipAt,
       },
       powers: { owned: this.powers.ownedPowers, active, readiness: active ? this.powers.readiness(active, now) : 0 },
+      solidColor: this.level.flipOrder.includes('colorSwap') ? (this.colorBlocks.isSwapped ? 'blue' : 'orange') : null,
       guardian: this.nearbyGuardian(),
       result: this.result,
     };
@@ -191,6 +199,8 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
     this.guardians = [];
     this.boss = null;
     this.minions = [];
+    this.explainedFlips = new Set();
+    this.lastFlipAt = -Infinity;
     // The physics world survives a scene restart, so undo anything a previous run left behind.
     this.physics.resume();
 
@@ -294,7 +304,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
   }
 
   fireArrow(x: number, y: number, dir: 1 | -1, charged: boolean, element: Element | null): void {
-    this.arrows.add(new Arrow(this, x, y, dir, charged, element));
+    this.arrows.add(new Arrow(this, x, y, dir, charged, element, this.level.arrowDamage));
   }
 
   castPower(element: Element, hero: Hero): void {
@@ -562,13 +572,17 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
     kb.on('keydown-Q', () => {
       if (this.playState === 'paused') this.backToMap();
     });
+    kb.on('keydown-R', () => {
+      if (this.playState === 'paused') this.restartLevel();
+    });
     // Switch power: L cycles, 1-4 pick fire, water, snow, wind.
     kb.on('keydown-L', () => this.powers.cycle());
     ['ONE', 'TWO', 'THREE', 'FOUR'].forEach((key, i) => kb.on(`keydown-${key}`, () => this.powers.select(ELEMENTS[i])));
     if (DEBUG.enabled) this.addDebugKeys(kb);
   }
 
-  private backToMap(): void {
+  /** Pause menu: back to the world map. */
+  backToMap(): void {
     this.physics.resume();
     this.scene.stop(SCENES.hud);
     this.scene.start(SCENES.map, { focus: this.levelId });
@@ -586,8 +600,14 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
     if (this.boss?.active) this.boss.onFlip(to, this.time.now);
     this.cameras.main.flash(250, 255, 255, 255);
     sfx.flip();
-    const info = FLIP_INFO[to];
-    this.showBanner(`${info.label}!\n${info.tip}`, FLIPS.bannerMs);
+    this.lastFlipAt = this.time.now;
+    // The full explanation covers the middle of the screen, so it only shows the first time each flip
+    // happens in a level; after that the top bar flashes instead.
+    if (!this.explainedFlips.has(to)) {
+      this.explainedFlips.add(to);
+      const info = FLIP_INFO[to];
+      this.showBanner(`${info.label}!\n${info.tip}`, FLIPS.bannerMs);
+    }
   }
 
   /** The only place world rules change. A flip keeps everyone's velocity; only the physics changes. */
@@ -755,6 +775,12 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
       case 'bounce':
         this.hero.bounce(ENEMY.calmBounceVelocity);
         sfx.bounce();
+        break;
+      case 'stomp':
+        // The bounce comes first, so the hero is clear of the enemy before it can hurt back.
+        this.hero.bounce(ENEMY.stompBounceVelocity);
+        if (c instanceof Walker) this.weaponHit(c, { damage: ENEMY.stompDamage, fromX: this.hero.x, element: null });
+        this.vitals.grantInvulnerability(now, 200);
         break;
       case 'spring':
         this.hero.bounce(FRIEND.mushroomBounceVelocity);
@@ -1008,9 +1034,27 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
     this.flips.holdFor(RESPAWN.graceMs);
     this.controls.reset();
     this.playState = 'playing';
+    // A label over the flag, so it is clear why the hero is back here.
+    if (this.checkpoints.activeIndex >= 0) this.floatLabel(at.x, at.y - 34, 'Checkpoint');
   }
 
-  private togglePause(): void {
+  /** A word that drifts up and fades out (gameplay never waits on it). */
+  private floatLabel(x: number, y: number, text: string): void {
+    const label = this.add
+      .text(x, y, text, { fontFamily: 'monospace', fontSize: '9px', color: '#fff176', stroke: '#10141c', strokeThickness: 3 })
+      .setOrigin(0.5)
+      .setDepth(10);
+    this.tweens.add({ targets: label, y: y - 14, alpha: { from: 1, to: 0 }, delay: 900, duration: 900, onComplete: () => label.destroy() });
+  }
+
+  /** Pause menu: start the level again from the beginning (powers already earned are kept). */
+  restartLevel(): void {
+    this.physics.resume();
+    this.scene.restart({ hero: this.heroKind, levelId: this.levelId });
+  }
+
+  /** Esc, or the pause button in the HUD. */
+  togglePause(): void {
     if (this.playState === 'playing') {
       this.playState = 'paused';
       this.physics.pause();
