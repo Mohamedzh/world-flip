@@ -306,26 +306,34 @@ export class HowToPlayScene extends Phaser.Scene {
   }
 
   private pageBoss(): void {
-    this.caption('The Shifting King wears a shield of four pieces. Each breaks only with its\nown power: pick it with 1 2 3 4, then tap K. Break all four before the next\nflip, or they grow back! Then hit him with your sword or arrows.');
+    this.caption(
+      [
+        'The Shifting King wears a shield of four pieces. Just tap K: in the castle',
+        'it picks the right power for each piece by itself. Break all four and he',
+        "loses a third of his health and gets dizzy: hit him then! (3 rounds at most)",
+      ].join('\n'),
+    );
     this.ground(30, 450);
     const look = HERO_LOOKS.knight;
     const hero = this.hero(look, 80);
-    const king = this.track(this.add.sprite(360, GROUND_Y, SHEETS.characters, LOOKS.king.frames[0]).setOrigin(0.5, 1).setScale(2).setFlipX(false));
+    const king = this.track(this.add.sprite(360, GROUND_Y, SHEETS.characters, LOOKS.king.frames[0]).setOrigin(0.5, 1).setScale(2));
     king.play(LOOKS.king.walkAnim);
+    // His health bar, in thirds like the game's.
+    this.track(this.add.rectangle(300, 62, 120, 5, 0x10141c, 0.8).setOrigin(0, 0));
+    const bar = this.track(this.add.rectangle(301, 63, 118, 3, COLORS.heart).setOrigin(0, 0));
+    for (const k of [1, 2]) this.track(this.add.rectangle(301 + (118 * k) / 3, 62, 1, 5, 0x10141c).setOrigin(0.5, 0));
     const orbs = ELEMENTS.map((e, i) => {
       const angle = -Math.PI / 2 + (i - 1.5) * 0.6;
-      const orb = this.track(
+      return this.track(
         this.add.container(king.x + Math.cos(angle) * 40 - 10, GROUND_Y - 30 + Math.sin(angle) * 40, [
           this.add.circle(0, 0, 8, 0x10141c, 0.85).setStrokeStyle(2, ELEMENT_COLOR[e]),
           this.add.image(0, 0, POWER_ICONS[e]),
         ]),
       );
-      return orb;
     });
     ELEMENTS.forEach((e, i) => {
-      const t = 600 + i * 1500;
-      this.at(t, () => {
-        this.label(hero.x, GROUND_Y - 46, `${i + 1} then K`);
+      this.at(600 + i * 1300, () => {
+        this.label(hero.x, GROUND_Y - 46, 'K');
         this.attack(hero, look);
         const p = PROJECTILE[e];
         const shot = this.track(this.add.image(hero.x + 14, GROUND_Y - 16, p.texture));
@@ -339,15 +347,35 @@ export class HowToPlayScene extends Phaser.Scene {
         });
       });
     });
-    this.at(6800, () => this.label(king.x, GROUND_Y - 70, 'Shield down!'));
-    this.at(7300, () => this.walk(hero, look, 318, 1200));
-    for (let k = 0; k < 3; k++) {
-      this.at(8600 + k * 450, () => {
+    // The last piece breaks: a third of his health goes, and he's dizzy.
+    const stars = [0, 1, 2].map(() => this.track(this.add.image(king.x, king.y - 50, TEXTURES.starFull).setScale(0.6).setVisible(false)));
+    this.at(5000, () => {
+      sfx.powerUp();
+      this.tweens.add({ targets: bar, width: (118 * 2) / 3, duration: 400 });
+      this.label(king.x, GROUND_Y - 70, 'Dizzy!');
+      this.tweens.add({ targets: king, angle: { from: -8, to: 8 }, duration: 240, yoyo: true, repeat: 12 });
+      stars.forEach((st, i) => {
+        st.setVisible(true);
+        this.tweens.addCounter({
+          from: 0,
+          to: Math.PI * 4,
+          duration: 6000,
+          onUpdate: (tw) => {
+            const a = (tw.getValue() ?? 0) + (i * Math.PI * 2) / 3;
+            st.setPosition(king.x + Math.cos(a) * 14, GROUND_Y - 52 + Math.sin(a) * 4);
+          },
+        });
+      });
+    });
+    this.at(5500, () => this.walk(hero, look, 318, 1100));
+    for (let k = 0; k < 4; k++) {
+      this.at(6700 + k * 450, () => {
         this.attack(hero, look);
         this.at(120, () => {
           sfx.hit();
           king.setTintFill(0xffffff);
           this.at(90, () => king.clearTint());
+          bar.width = Math.max(118 / 3 + 4, bar.width - 9);
         });
       });
     }

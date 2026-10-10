@@ -187,7 +187,8 @@ export const GUARDIAN = {
     health: 12,
     cruiseSpeed: 55,
     swoopEveryMs: 3_000,
-    telegraphMs: 600,
+    /** He stops and glows the color of the coming attack this long before it. */
+  telegraphMs: 800,
     swoopSpeed: 190,
     swoopMs: 900,
   },
@@ -206,8 +207,14 @@ export const GUARDIAN = {
 
 /** The Shifting King, the final boss (spec). */
 export const BOSS = {
-  /** Once the shield is down: 10 Knight hits (2 damage) or 20 arrows (1 damage) (spec). */
-  health: 20,
+  /**
+   * Three rounds: breaking all four shield pieces costs him a third of this and leaves him dizzy,
+   * when weapons hurt him too (5 sword hits or 5 castle arrows take another third). Then the shield
+   * grows back. Good hitting wins in 2 rounds; 3 rounds always do it.
+   */
+  health: 30,
+  shieldBreakDamage: 10,
+  dizzyMs: 6_000,
   walkSpeed: 45,
   /** An attack every few seconds, always after a warning shake. */
   attackEveryMs: 2_600,

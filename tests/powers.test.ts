@@ -17,6 +17,21 @@ describe('PowerSystem', () => {
     expect(p.useActive(0)).toBe('fire');
   });
 
+  it('at the boss, K picks a ready power that still breaks a shield piece', () => {
+    const p = new PowerSystem(cooldowns, ['fire', 'water', 'snow', 'wind']);
+    p.select('fire');
+    // Fire's piece is already broken: water is the first one wanted.
+    expect(p.useFirstReady(['water', 'snow'], 0)).toBe('water');
+    expect(p.active).toBe('water');
+    // Water is cooling down, so the next one goes to snow.
+    expect(p.useFirstReady(['water', 'snow'], 100)).toBe('snow');
+    // The active power goes first when it's wanted and ready.
+    p.select('wind');
+    expect(p.useFirstReady(['water', 'wind'], 5000)).toBe('wind');
+    // Nothing wanted is ready: nothing happens.
+    expect(p.useFirstReady(['snow'], 200)).toBeNull();
+  });
+
   it('earning a power twice changes nothing', () => {
     const p = new PowerSystem(cooldowns, ['fire']);
     expect(p.grant('fire')).toBe(false);

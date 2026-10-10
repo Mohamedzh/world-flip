@@ -75,6 +75,18 @@ export class PowerSystem {
     return e;
   }
 
+  /**
+   * Uses the first ready power among `wanted` (the active one first if it's wanted), and makes it
+   * the active one. Used at the boss, so K always picks a power that still breaks a shield piece.
+   */
+  useFirstReady(wanted: readonly Element[], now: number): Element | null {
+    const order = this.activeValue && wanted.includes(this.activeValue) ? [this.activeValue, ...wanted] : wanted;
+    const e = order.find((w) => this.ready(w, now));
+    if (!e) return null;
+    this.activeValue = e;
+    return this.useActive(now);
+  }
+
   /** 0 = just used, 1 = ready. */
   readiness(e: Element, now: number): number {
     const at = this.readyAt.get(e) ?? 0;

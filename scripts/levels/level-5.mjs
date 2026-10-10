@@ -29,5 +29,6 @@ writeLevel(g, new URL('../../public/assets/levels/level-5.tmj', import.meta.url)
   flipMode: 'random',
   flipOrder: 'lowGravity,colorSwap,friendFoe,upsideDown,normal',
   flipIntervalSec: 20,
+  arrowDamage: 2,
   parTimeSec: 300,
 });

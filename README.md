@@ -103,11 +103,15 @@ From World 3, enemies have 4 health, so plain arrows do 2 damage there (charged:
 
 Crown Castle opens on the world map once Sky is finished and all four powers are earned; its door shows four slots that
 fill as powers are earned, and opens only with all four. The Shifting King wears a shield of four pieces, and each breaks
-only with its own element (any fire, water, snow or wind attack, cast or weapon-powered). Every flip regrows the whole
-shield, so all four must break within one flip window; the castle flips every 20 s instead of 10 to make that fair.
-With the shield down, weapons hurt him: 10 Knight hits or 20 arrows. His attack changes with the flip: a hop normally,
-a ground slam with shockwaves in low gravity (jump them; the Knight can't deflect these), a ceiling dive upside-down, and
-two summoned mushrooms in the friend/foe swap. Beat him and the crown floats down; take it for the ending and your total stars.
+only with its own element (any fire, water, snow or wind attack, cast or weapon-powered). In the castle, K picks a ready
+power that still breaks a piece by itself, so there's no need to switch with 1-4. Broken pieces stay broken through flips.
+Breaking the last piece costs him a third of his health and leaves him dizzy for 6 s (stars over his head): he's harmless
+then, can be stomped, and weapons hurt him (5 sword hits or 5 arrows take about another third). Then the whole shield grows
+back. So it takes at most 3 rounds, and 2 with good hitting; the bar under his name is marked in thirds.
+His attack changes with the flip, and before each one he stops and glows its color: yellow for a hop (normal), orange for a
+ground slam with shockwaves (low gravity; jump them, the Knight can't deflect these), purple for a ceiling dive
+(upside-down). In the friend/foe swap he also summons two mushrooms. Beat him and the crown floats down; take it for the
+ending and your total stars.
 
 ## How it's organized
 

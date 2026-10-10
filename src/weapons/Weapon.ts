@@ -23,6 +23,8 @@ export interface CombatWorld {
   fireArrow(x: number, y: number, dir: 1 | -1, charged: boolean, element: Element | null): void;
   /** Casts a power (key K): fireball, water wave, snowball or gust. */
   castPower(element: Element, hero: Hero): void;
+  /** At the boss: the powers that still break a piece of his shield (null anywhere else). */
+  wantedElements(): readonly Element[] | null;
 }
 
 export interface Weapon {

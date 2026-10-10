@@ -37,6 +37,11 @@
    "value": 20
   },
   {
+   "name": "arrowDamage",
+   "type": "int",
+   "value": 2
+  },
+  {
    "name": "parTimeSec",
    "type": "int",
    "value": 300

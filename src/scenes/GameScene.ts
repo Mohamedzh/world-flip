@@ -307,6 +307,11 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
     this.arrows.add(new Arrow(this, x, y, dir, charged, element, this.level.arrowDamage));
   }
 
+  wantedElements(): readonly Element[] | null {
+    const boss = this.boss;
+    return boss?.active && !boss.shieldDown ? boss.shieldPieces : null;
+  }
+
   castPower(element: Element, hero: Hero): void {
     const dir = hero.facing;
     const g = this.gravityDir;
@@ -767,6 +772,7 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
       landingOnTop,
       stunned: c instanceof Mushroom && c.isStunned(now),
       frozen: c instanceof Walker && c.isFrozen(now),
+      dizzy: c instanceof ShiftingKing && c.isDizzy(now),
     });
     switch (effect) {
       case 'hurtHero':
@@ -845,7 +851,9 @@ export class GameScene extends Phaser.Scene implements CombatWorld, BossWorld {
         sfx.shatter();
         if (boss.shieldDown) {
           sfx.powerUp();
-          this.showBanner('The shield is down!\nAttack him now!', 2000);
+          this.cameras.main.shake(250, 0.006);
+          if (boss.stagger(now)) this.bossDefeated(boss);
+          else this.showBanner("Shield broken! He's dizzy:\nhit him now!", 2000);
         }
       } else {
         sfx.hit();

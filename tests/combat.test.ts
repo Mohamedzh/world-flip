@@ -23,6 +23,12 @@ describe('weaponHitEffect', () => {
 });
 
 describe('touchEffect', () => {
+  it('a dizzy boss is harmless and can be stomped', () => {
+    const ctx = { friendsHostile: false, stunned: false, dizzy: true };
+    expect(touchEffect('enemy', { ...ctx, landingOnTop: false })).toBe('none');
+    expect(touchEffect('enemy', { ...ctx, landingOnTop: true })).toBe('stomp');
+  });
+
   const ctx = { friendsHostile: false, landingOnTop: false, stunned: false };
 
   it('enemies hurt on touch from the side, and are stomped from above', () => {

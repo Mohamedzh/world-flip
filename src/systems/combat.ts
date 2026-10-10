@@ -41,11 +41,14 @@ export interface TouchContext {
   stunned: boolean;
   /** The enemy is frozen into an ice block: harmless, and solid to stand on. */
   frozen?: boolean;
+  /** The boss is dizzy (shield broken): harmless, and can be stomped. */
+  dizzy?: boolean;
 }
 
 export function touchEffect(target: CreatureKind, ctx: TouchContext): TouchEffect {
   if (target === 'enemy') {
     if (ctx.frozen) return 'none';
+    if (ctx.dizzy) return ctx.landingOnTop ? 'stomp' : 'none';
     // During the friend/foe swap, enemies are harmless and can be bounced on.
     if (ctx.friendsHostile) return ctx.landingOnTop ? 'bounce' : 'none';
     // Kids expect to jump on enemies (play-testing): from above it's a stomp, from the side it hurts.

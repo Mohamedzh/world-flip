@@ -92,13 +92,17 @@ export abstract class Hero extends Phaser.Physics.Arcade.Sprite {
     // Tap K to cast; hold K and press J to charge the weapon instead (both use the power's cooldown).
     let attack = input;
     const action = this.powerTrigger.update(input.powerHeld, input.attackPressed);
-    const active = this.powers.active;
-    if (action === 'chargeWeapon' && active && this.powers.ready(active, now) && this.weapon.ready(now)) {
-      this.powers.useActive(now);
-      this.weapon.charge(active, now);
-      attack = { ...input, attackPressed: false };
+    // At the boss, K picks by itself a power that still breaks one of his shield pieces.
+    const wanted = this.world.wantedElements();
+    const use = () => (wanted ? this.powers.useFirstReady(wanted, now) : this.powers.useActive(now));
+    if (action === 'chargeWeapon' && this.weapon.ready(now)) {
+      const element = use();
+      if (element) {
+        this.weapon.charge(element, now);
+        attack = { ...input, attackPressed: false };
+      }
     } else if (action === 'cast') {
-      const element = this.powers.useActive(now);
+      const element = use();
       if (element) this.world.castPower(element, this);
     }
     this.weapon.update(attack, now);

@@ -1,10 +1,11 @@
 // The final boss (spec). He wears a shield of four pieces; each piece breaks only with its own
-// element. Every world flip regrows any broken pieces, so all four must break within one flip
-// window. With the shield down, weapons hurt him. His attack changes with each flip:
-// ground slams in low gravity, ceiling dives upside-down, summoned friends during friend/foe.
+// element, and broken pieces stay broken. Breaking the last one costs him a third of his health and
+// leaves him dizzy for a few seconds: harmless, and weapons hurt him. Then the whole shield grows back.
+// His attack changes with each flip (ground slams in low gravity, ceiling dives upside-down, summoned
+// friends during friend/foe), and before each attack he stops and glows that attack's color.
 import Phaser from 'phaser';
 import { BOSS } from '../config';
-import { POWER_ICONS } from '../gfx/placeholderTextures';
+import { POWER_ICONS, TEXTURES } from '../gfx/placeholderTextures';
 import { LOOKS } from '../gfx/sprites';
 import type { Point } from '../systems/CheckpointTracker';
 import type { FlipState } from '../systems/flips';
@@ -24,6 +25,10 @@ const SHIELD_COLORS: Record<Element, number> = { fire: 0xff7043, water: 0x4fc3f7
 
 type Mode = 'walk' | 'telegraph' | 'attack';
 
+/** The glow before each attack: orange for the slam, purple for the ceiling dive, yellow for a hop. */
+const TELEGRAPH_COLORS: Partial<Record<FlipState, number>> = { lowGravity: 0xff7043, upsideDown: 0xb388ff };
+const HOP_COLOR = 0xfff176;
+
 export class ShiftingKing extends Walker {
   readonly displayName = 'The Shifting King';
   /** Shield pieces still standing. */
@@ -35,6 +40,9 @@ export class ShiftingKing extends Walker {
   /** Set while airborne from a slam jump, so landing makes the shockwaves. */
   private slamming = false;
   private orbitAngle = 0;
+  /** While dizzy (shield broken): no attacks, harmless, and weapons hurt him. 0 = not dizzy. */
+  private dizzyUntil = 0;
+  private readonly dizzyStars: Phaser.GameObjects.Image[];
 
   constructor(
     scene: Phaser.Scene,
@@ -58,7 +66,11 @@ export class ShiftingKing extends Walker {
       orb.setDepth(4);
       this.shieldOrbs.set(e, orb);
     }
-    this.once(Phaser.GameObjects.Events.DESTROY, () => this.shieldOrbs.forEach((o) => o.destroy()));
+    this.dizzyStars = [0, 1, 2].map(() => scene.add.image(this.x, this.y, TEXTURES.starFull).setDepth(4).setVisible(false));
+    this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.shieldOrbs.forEach((o) => o.destroy());
+      this.dizzyStars.forEach((st) => st.destroy());
+    });
   }
 
   get shieldPieces(): Element[] {
@@ -67,6 +79,10 @@ export class ShiftingKing extends Walker {
 
   get shieldDown(): boolean {
     return this.shield.size === 0;
+  }
+
+  isDizzy(now: number): boolean {
+    return now < this.dizzyUntil;
   }
 
   /** He never turns calm (during the friend/foe swap he summons friends instead). */
@@ -85,22 +101,35 @@ export class ShiftingKing extends Walker {
     return true;
   }
 
-  /** Weapons only hurt him once the shield is down. */
+  /**
+   * The last shield piece broke: he loses a third of his health and goes dizzy.
+   * Returns true if that defeated him.
+   */
+  stagger(now: number): boolean {
+    this.health -= BOSS.shieldBreakDamage;
+    if (this.health <= 0) {
+      this.defeat();
+      return true;
+    }
+    this.dizzyUntil = now + BOSS.dizzyMs;
+    this.mode = 'walk';
+    this.slamming = false;
+    this.body.setVelocityX(0);
+    this.restoreTint();
+    this.dizzyStars.forEach((st) => st.setVisible(true));
+    return false;
+  }
+
+  /** Weapons only hurt him while he's dizzy. */
   takeHit(damage: number, fromX: number, now: number): boolean {
-    if (!this.shieldDown) return false;
+    if (!this.isDizzy(now)) return false;
     return super.takeHit(damage, fromX, now);
   }
 
-  /** A flip regrows the whole shield (spec) and changes his attack. */
+  /** A flip changes his attack (broken shield pieces stay broken). */
   onFlip(state: FlipState, now: number): void {
     this.flipState = state;
-    for (const e of ELEMENTS) {
-      if (this.shield.has(e)) continue;
-      this.shield.add(e);
-      const orb = this.shieldOrbs.get(e)!;
-      orb.setScale(0.2).setAlpha(1);
-      this.scene.tweens.add({ targets: orb, scale: 1, duration: 300, ease: 'Back.out' });
-    }
+    if (this.isDizzy(now)) return;
     this.mode = 'walk';
     this.slamming = false;
     this.modeUntil = now + BOSS.attackEveryMs * 0.6;
@@ -110,6 +139,13 @@ export class ShiftingKing extends Walker {
   update(time: number): void {
     if (this.isDefeated) return;
     this.updateOrbs(time);
+    if (this.dizzyUntil > 0) {
+      if (time < this.dizzyUntil) {
+        this.updateDizzy(time);
+        return;
+      }
+      this.recover(time);
+    }
     if (time < this.stunnedUntil) return;
     if (this.slamming && onFloor(this.body, this.gravityDir)) this.landSlam();
     if (time >= this.modeUntil) this.nextMode(time);
@@ -127,12 +163,43 @@ export class ShiftingKing extends Walker {
     this.body.setVelocityX(this.dir * BOSS.walkSpeed);
   }
 
+  /** Sways in place with stars circling his head. */
+  private updateDizzy(time: number): void {
+    this.body.setVelocityX(0);
+    this.setAngle(Math.sin(time / 120) * 8);
+    const c = this.body.center;
+    const top = this.gravityDir > 0 ? this.body.top - 8 : this.body.bottom + 8;
+    this.dizzyStars.forEach((st, i) => {
+      const a = time / 250 + (i * Math.PI * 2) / 3;
+      st.setPosition(c.x + Math.cos(a) * 14, top + Math.sin(a) * 4).setScale(0.6);
+    });
+  }
+
+  /** Dizziness wears off: the whole shield grows back. */
+  private recover(time: number): void {
+    this.dizzyUntil = 0;
+    this.setAngle(0);
+    this.dizzyStars.forEach((st) => st.setVisible(false));
+    for (const e of ELEMENTS) {
+      this.shield.add(e);
+      const orb = this.shieldOrbs.get(e)!;
+      orb.setScale(0.2).setAlpha(1);
+      this.scene.tweens.add({ targets: orb, scale: 1, duration: 300, ease: 'Back.out' });
+    }
+    this.mode = 'walk';
+    this.modeUntil = time + BOSS.attackEveryMs * 0.6;
+  }
+
   private nextMode(time: number): void {
     if (this.mode === 'walk') {
       this.mode = 'telegraph';
       this.modeUntil = time + BOSS.telegraphMs;
-      this.setTintFill(0xffffff);
-      this.scene.time.delayedCall(120, () => this.active && this.restoreTint());
+      // Glow (blinking) in the color of the coming attack.
+      const color = TELEGRAPH_COLORS[this.flipState] ?? HOP_COLOR;
+      for (let i = 0; i < BOSS.telegraphMs / 200; i++) {
+        this.scene.time.delayedCall(i * 200, () => this.active && this.mode === 'telegraph' && this.setTintFill(color));
+        this.scene.time.delayedCall(i * 200 + 120, () => this.active && this.restoreTint());
+      }
     } else if (this.mode === 'telegraph') {
       this.mode = 'attack';
       this.attack();

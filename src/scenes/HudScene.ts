@@ -56,6 +56,8 @@ export class HudScene extends Phaser.Scene {
   private guardianBarBack!: Phaser.GameObjects.Rectangle;
   private guardianBar!: Phaser.GameObjects.Rectangle;
   private shieldIcons: Phaser.GameObjects.Image[] = [];
+  /** Marks on the boss's bar at each third: one shield break, or a good round of hits, takes a third. */
+  private roundTicks: Phaser.GameObjects.Rectangle[] = [];
   private shimmer!: Phaser.GameObjects.Rectangle;
   /** "Solid: [block]" under the hearts, so it is always clear which color can be stood on. */
   private solidLabel!: Phaser.GameObjects.Text;
@@ -123,6 +125,7 @@ export class HudScene extends Phaser.Scene {
     this.guardianBar = this.add.rectangle(cx - 59, 39, 118, 3, COLORS.heart).setOrigin(0, 0);
     // The boss's shield pieces, beside his bar: a piece's icon goes dim once it's broken.
     this.shieldIcons = ELEMENTS.map((e, i) => this.add.image(cx + 66 + i * 12, 40, POWER_ICONS[e]).setVisible(false));
+    this.roundTicks = [1, 2].map((k) => this.add.rectangle(cx - 59 + (118 * k) / 3, 38, 1, 5, 0x10141c).setOrigin(0.5, 0).setVisible(false));
 
     const cy = VIEW.height / 2;
     this.bannerText = this.add.text(cx, cy - 40, '', { ...TEXT, fontSize: '14px', align: 'center' }).setOrigin(0.5);
@@ -232,8 +235,9 @@ export class HudScene extends Phaser.Scene {
       icon.setVisible(!!guardian?.shield);
       icon.setAlpha(guardian?.shield?.includes(ELEMENTS[i]) ? 1 : 0.2);
     });
+    for (const t of this.roundTicks) t.setVisible(!!guardian?.shield);
     if (!guardian) return;
-    this.guardianName.setText(guardian.shield?.length === 0 ? `${guardian.name} - shield down!` : guardian.name);
+    this.guardianName.setText(guardian.shield?.length === 0 ? `${guardian.name} - dizzy! Hit him!` : guardian.name);
     this.guardianBar.setSize(Math.max(0, 118 * guardian.health), 3);
   }
 

@@ -171,6 +171,7 @@ describe('parseLevel', () => {
     expect(parseLevel(load('level-1.tmj')).arrowDamage).toBe(1);
     expect(parseLevel(load('level-3.tmj')).arrowDamage).toBe(2);
     expect(parseLevel(load('level-4.tmj')).arrowDamage).toBe(2);
+    expect(parseLevel(load('level-5.tmj')).arrowDamage).toBe(2);
   });
 
   it('reads seed pods with their height (default 3), fire walls and throwers', () => {
