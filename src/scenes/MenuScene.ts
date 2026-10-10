@@ -1,4 +1,4 @@
-// The main menu: Play (opens the world map), Controls, and About. Up/Down and Enter, or the mouse.
+// The main menu: Play (opens the world map), How to Play, Controls, and About. Up/Down and Enter, or the mouse.
 import Phaser from 'phaser';
 import { sfx } from '../audio/sfx';
 import { music } from '../audio/music';
@@ -78,8 +78,8 @@ export class MenuScene extends Phaser.Scene {
         this.content.push(this.add.sprite(x, 200, look.sheet, look.idle).setOrigin(0.5, 1).setScale(2).setFlipX(flip).play(look.walkAnim));
       }
       this.content.push(this.add.image(cx, 112, TEXTURES.crown).setScale(2));
-      this.items = ['Play', 'Controls', 'About'].map((label, i) => {
-        const t = this.text(cx, 150 + i * 26, label, { fontSize: '16px' });
+      this.items = ['Play', 'How to Play', 'Controls', 'About'].map((label, i) => {
+        const t = this.text(cx, 142 + i * 22, label, { fontSize: '16px' });
         t.setInteractive({ useHandCursor: true })
           .on('pointerover', () => this.highlight(i))
           .on('pointerdown', () => {
@@ -137,6 +137,7 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
     if (this.selected === 0) this.scene.start(SCENES.map);
-    else this.show(this.selected === 1 ? 'controls' : 'about');
+    else if (this.selected === 1) this.scene.start(SCENES.howToPlay);
+    else this.show(this.selected === 2 ? 'controls' : 'about');
   }
 }

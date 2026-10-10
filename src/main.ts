@@ -5,6 +5,7 @@ import { GameScene } from './scenes/GameScene';
 import { HudScene } from './scenes/HudScene';
 import { MapScene } from './scenes/MapScene';
 import { MenuScene } from './scenes/MenuScene';
+import { HowToPlayScene } from './scenes/HowToPlayScene';
 import { EndingScene } from './scenes/EndingScene';
 import { UiScene } from './scenes/UiScene';
 import { SelectScene } from './scenes/SelectScene';
@@ -30,7 +31,7 @@ const game = new Phaser.Game({
     },
   },
   // UiScene is last so its sound buttons are drawn on top of every other screen.
-  scene: [BootScene, MenuScene, MapScene, SelectScene, GameScene, HudScene, EndingScene, UiScene],
+  scene: [BootScene, MenuScene, HowToPlayScene, MapScene, SelectScene, GameScene, HudScene, EndingScene, UiScene],
 });
 
 // Lets the browser console inspect the running game during development.

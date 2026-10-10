@@ -3,6 +3,7 @@
 export const SCENES = {
   boot: 'Boot',
   menu: 'Menu',
+  howToPlay: 'HowToPlay',
   map: 'Map',
   ending: 'Ending',
   ui: 'Ui',

@@ -120,7 +120,7 @@ two summoned mushrooms in the friend/foe swap. Beat him and the crown floats dow
 - `src/actors/`: enemies (Walker, Thrower), the four guardians, the Shifting King and his door, the bounce Mushroom friend,
   fire walls and power orbs.
 - `src/world/`: color blocks, burnable crates, water and ice, seed pods.
-- `src/scenes/`: Boot (loading), Menu (main menu, controls, about), Map (world map), Select (hero select), Game (the level),
+- `src/scenes/`: Boot (loading), Menu (main menu, controls, about), HowToPlay (six pages of little animated scenes), Map (world map), Select (hero select), Game (the level),
   Hud (top bar, messages, results), Ending.
 - `src/audio/`: synthesized sound effects (`sfx.ts`), the music player (`music.ts`, one track per world) and the on/off settings.
 - `src/gfx/`: Kenney sprite sheet frames and animations, plus a few textures drawn in code.
